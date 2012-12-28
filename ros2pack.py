@@ -36,12 +36,14 @@ class RPMSpec:
   def __init__(self, xmlPath, wsPath):
     tree = etree.parse(xmlPath)
     root = tree.getroot()
-    self.name = PACKAGE_PREFIX.format(root.find('name').text)
+    self.name = root.find('name').text
     self.version = root.find('version').text
     self.url = root.find('url').text
     self.description = re.sub('\s+', ' ', root.find('description').text)
     self.summary = self.description.split(".", 1)[0]
     self.license = root.find('license').text
+    with subprocess.Popen(['wstool', 'info', '-t', wsPath, '--only', 'cur_uri', self.name], stdout=subprocess.PIPE, universal_newlines=True) as provided_source:
+      self.source = provided_source.stdout.readline()
     def elementText(element):
       return element.text
     self.dependencies = DependencyStateStore(set(map(elementText,
@@ -64,12 +66,12 @@ License:	{license}
 Summary:	{summary}
 Url:	{url}
 Group:	Robotics
-Source:	PLUG THIS IN
+Source:	{source}
 
 """
-    stream.write(header_template.format(name=self.name, version=self.version,
+    stream.write(header_template.format(name=PACKAGE_PREFIX.format(self.name), version=self.version,
                                         license=self.license, summary=self.summary,
-                                        url=self.url))
+                                        url=self.url, source=self.source))
 
     for build_dependency in self.dependencies.build_packages():
       stream.write("BuildRequires:	{0}\n".format(build_dependency))
