@@ -1,3 +1,4 @@
+import subprocess
 import sys
 import xml.etree.ElementTree as etree
 
@@ -37,30 +38,15 @@ def parsePackage(xmlPath):
                               set(map(elementText,
                                   root.findall('run_depend'))))
 
-def parseCMake(cmakePath, dependencyStore):
-  with open(cmakePath, encoding='utf-8') as cmake_file:
-    accumulating = False
-    accumulating_catkin = False
-    accumulating_catkin_components = False
-    for cmake_line in cmake_file:
-      if "find_package" in cmake_line.lower():
-        accumulating = True
-      if accumulating and "catkin" in cmake_line.lower():
-        accumulating_catkin = True
-      if accumulating_catkin:
-        for cmake_token in cmake_line.split():
-          if cmake_token == "COMPONENTS":
-            accumulating_catkin_components = True
-          if accumulating_catkin_components:
-            dependencyStore.mark(cmake_token)
-      if accumulating and ")" in cmake_line:
-        accumulating = False
-        accumulating_catkin = False
-        accumulating_catkin_components = False
+def identifyProvided(wsPath, dependencyStore):
+  with subprocess.Popen(["wstool", "info", "-t", wsPath, "--only", "localname"], stdout=subprocess.PIPE, universal_newlines=True) as provided_results:
+    for provided_result in provided_results.stdout:
+      provided = provided_result.rstrip()
+      dependencyStore.mark(provided)
   return dependencyStore
 
 if __name__ == '__main__':
   xmlPath = sys.argv[1]
-  cmakePath = sys.argv[2]
+  wsPath = sys.argv[2]
   dependencies = parsePackage(xmlPath)
-  print(parseCMake(cmakePath, dependencies))
+  print(identifyProvided(wsPath, dependencies))
