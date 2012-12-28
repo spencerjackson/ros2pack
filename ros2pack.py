@@ -65,7 +65,7 @@ Release:	0
 License:	{license}
 Summary:	{summary}
 Url:	{url}
-Group:	Robotics
+Group:	Productivity/Scientific/Other
 Source:	{source}
 
 """
