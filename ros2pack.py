@@ -89,10 +89,6 @@ catkin_make --source . -DSETUPTOOLS_ARG_EXTRA=""
 %install
 catkin_make -DCMAKE_INSTALL_PREFIX=%{buildroot}/usr install
 
-%post
-
-%postun
-
 %files -f build/install_manifest.txt
 %defattr(-,root,root)
 
