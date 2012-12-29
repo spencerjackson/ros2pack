@@ -59,7 +59,7 @@ class RPMSpec:
 
   def render(self, stream):
     header_template = """
-Name:	{name}
+Name:	{pkg_name}
 Version:	{version}
 Release:	0
 License:	{license}
@@ -70,9 +70,10 @@ Source:	{source}
 
 BuildRequires:  gcc-c++
 """
-    stream.write(header_template.format(name=PACKAGE_PREFIX.format(self.name), version=self.version,
-                                        license=self.license, summary=self.summary,
-                                        url=self.url, source=self.source))
+    stream.write(header_template.format(pkg_name=PACKAGE_PREFIX.format(self.name),
+                                        version=self.version, license=self.license,
+                                        summary=self.summary, url=self.url,
+                                        source=self.source))
 
     for build_dependency in self.dependencies.build_packages():
       stream.write("BuildRequires:	{0}\n".format(build_dependency))
@@ -82,20 +83,23 @@ BuildRequires:  gcc-c++
 
     body = """
 %prep
-%setup -q
+%setup -q -n workspace
+mv * {name}
+mkdir src
+mv {name} src
 
 %build
-catkin_make --source . -DSETUPTOOLS_ARG_EXTRA=""
+catkin_make -DSETUPTOOLS_ARG_EXTRA="" -DCMAKE_INSTALL_PREFIX=/usr
 
 %install
-catkin_make -DCMAKE_INSTALL_PREFIX=%{buildroot}/usr install
+catkin_make install DESTDIR=%{{_buildroot}}
 
 %files -f build/install_manifest.txt
 %defattr(-,root,root)
 
 %changelog
 """
-    stream.write(body)
+    stream.write(body.format(name=self.name))
 
 if __name__ == '__main__':
   xmlPath = sys.argv[1]
