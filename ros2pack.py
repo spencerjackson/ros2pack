@@ -77,7 +77,7 @@ Source:	{source}
       stream.write("BuildRequires:	{0}\n".format(build_dependency))
     for run_dependency in self.dependencies.run_packages():
       stream.write("Requires:	{0}\n".format(run_dependency))
-    stream.write("\n%description\n{0}".format(self.description))
+    stream.write("\n%description\n{0}\n".format(self.description))
 
     body = """
 %prep
