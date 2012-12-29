@@ -68,6 +68,7 @@ Url:	{url}
 Group:	Productivity/Scientific/Other
 Source:	{source}
 
+BuildRequires:  gcc-c++
 """
     stream.write(header_template.format(name=PACKAGE_PREFIX.format(self.name), version=self.version,
                                         license=self.license, summary=self.summary,
