@@ -112,5 +112,7 @@ rmdir %{{?buildroot}}/usr/lib/pkgconfig
 if __name__ == '__main__':
   xmlPath = sys.argv[1]
   wsPath = sys.argv[2]
+  destination = sys.argv[3]
   spec = RPMSpec(xmlPath, wsPath)
-  spec.render(sys.stdout)
+  with open("{0}/{1}.spec".format(destination, PACKAGE_PREFIX.format(spec.name)), mode="w") as rpmSpec:
+    spec.render(rpmSpec)
