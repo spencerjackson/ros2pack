@@ -84,7 +84,7 @@ BuildRequires:  gcc-c++
 
     body = """
 %prep
-%setup -q -n workspace
+%setup -q -c -n workspace
 mv * {name}
 mkdir src
 mv {name} src
