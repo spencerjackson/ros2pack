@@ -66,7 +66,8 @@ License:	{license}
 Summary:	{summary}
 Url:	{url}
 Group:	Productivity/Scientific/Other
-Source:	{source}
+Source0:	{source}
+Source1:	{pkg_name}-rpmlintrc
 
 BuildRequires:  python-devel
 BuildRequires:  gcc-c++
@@ -114,5 +115,6 @@ if __name__ == '__main__':
   wsPath = sys.argv[2]
   destination = sys.argv[3]
   spec = RPMSpec(xmlPath, wsPath)
-  with open("{0}/{1}.spec".format(destination, PACKAGE_PREFIX.format(spec.name)), mode="w") as rpmSpec:
+  with open("{0}/{1}.spec".format(destination, PACKAGE_PREFIX.format(spec.name)), mode="w") as rpmSpec, open("{0}/{1}-rpmlintrc".format(destination, PACKAGE_PREFIX.format(spec.name)), mode="w") as lintFile:
     spec.render(rpmSpec)
+    lintFile.write("setBadness('devel-file-in-non-devel-package', 0)")
