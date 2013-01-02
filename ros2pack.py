@@ -68,6 +68,7 @@ Url:	{url}
 Group:	Productivity/Scientific/Other
 Source:	{source}
 
+BuildRequires:  python-devel
 BuildRequires:  gcc-c++
 """
     stream.write(header_template.format(pkg_name=PACKAGE_PREFIX.format(self.name),
