@@ -90,7 +90,7 @@ mkdir src
 mv {name} src
 
 %build
-catkin_make -DSETUPTOOLS_ARG_EXTRA="" -DCMAKE_INSTALL_PREFIX=/usr
+CMAKE_PREFIX_PATH=/usr catkin_make -DSETUPTOOLS_ARG_EXTRA="" -DCMAKE_INSTALL_PREFIX=/usr
 
 %install
 catkin_make install DESTDIR=%{{_buildroot}}
