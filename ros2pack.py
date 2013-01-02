@@ -94,6 +94,13 @@ CMAKE_PREFIX_PATH=/usr catkin_make -DSETUPTOOLS_ARG_EXTRA="" -DCMAKE_INSTALL_PRE
 
 %install
 catkin_make install DESTDIR=%{{_buildroot}}
+rm %{{?buildroot}}/usr/.catkin %{{?buildroot}}/usr/.rosinstall \
+   %{{?buildroot}}/usr/env.sh %{{?buildroot}}/usr/_setup_util.py \
+   %{{?buildroot}}/usr/setup*
+mkdir %{{?buildroot}}/usr/share/pkgconfig
+mv %{{?buildroot}}/usr/lib/pkgconfig/{name}.pc %{{?buildroot}}/usr/share/pkgconfig/
+rmdir %{{?buildroot}}/usr/lib/pkgconfig
+
 
 %files -f build/install_manifest.txt
 %defattr(-,root,root)
