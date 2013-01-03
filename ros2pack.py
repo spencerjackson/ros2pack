@@ -67,7 +67,8 @@ Summary:	{summary}
 Url:	{url}
 Group:	Productivity/Scientific/Other
 Source0:	{source}
-Source1:	{pkg_name}-rpmlintrc
+Source1:	rosManifestParser.py
+Source2:	{pkg_name}-rpmlintrc
 
 BuildRequires:  python-devel
 BuildRequires:  gcc-c++
@@ -94,16 +95,16 @@ mv {name} src
 CMAKE_PREFIX_PATH=/usr catkin_make -DSETUPTOOLS_ARG_EXTRA="" -DCMAKE_INSTALL_PREFIX=/usr
 
 %install
-catkin_make install DESTDIR=%{{_buildroot}}
+catkin_make install DESTDIR=%{{?buildroot}}
 rm %{{?buildroot}}/usr/.catkin %{{?buildroot}}/usr/.rosinstall \
    %{{?buildroot}}/usr/env.sh %{{?buildroot}}/usr/_setup_util.py \
    %{{?buildroot}}/usr/setup*
 mkdir %{{?buildroot}}/usr/share/pkgconfig
 mv %{{?buildroot}}/usr/lib/pkgconfig/{name}.pc %{{?buildroot}}/usr/share/pkgconfig/
 rmdir %{{?buildroot}}/usr/lib/pkgconfig
+python %{{SOURCE1}} {name} build/install_manifest.txt
 
-
-%files -f build/install_manifest.txt
+%files -f ros_install_manifest
 %defattr(-,root,root)
 
 %changelog
@@ -115,6 +116,53 @@ if __name__ == '__main__':
   wsPath = sys.argv[2]
   destination = sys.argv[3]
   spec = RPMSpec(xmlPath, wsPath)
-  with open("{0}/{1}.spec".format(destination, PACKAGE_PREFIX.format(spec.name)), mode="w") as rpmSpec, open("{0}/{1}-rpmlintrc".format(destination, PACKAGE_PREFIX.format(spec.name)), mode="w") as lintFile:
+  with open("{0}/{1}.spec".format(destination, PACKAGE_PREFIX.format(spec.name)), mode="w") as rpmSpec, open("{0}/{1}-rpmlintrc".format(destination, PACKAGE_PREFIX.format(spec.name)), mode="w") as lintFile, open("{0}/rosManifestParser.py".format(destination), mode="w") as parserFile:
     spec.render(rpmSpec)
     lintFile.write("setBadness('devel-file-in-non-devel-package', 0)")
+    parserFile.write("""
+import re
+import sys
+
+def is_valid_manifest_entry(manifest_entry):
+  blacklist = set(map(re.compile,
+                       {"/usr/\.catkin", "/usr/_setup_util.py",
+                        "/usr/env.sh", "/usr/setup\.+?",
+                        "/usr/\.rosinstall", "/usr/lib/pkgconfig*?",
+                        "/usr/share/*"}))
+  for blacklist_entry in blacklist:
+    if blacklist_entry.match(manifest_entry) != None:
+      return False
+  return True
+
+def extract_manifest(manifestPath):
+  manifest = set()
+  with open(manifestPath) as manifestFile:
+    for entry in manifestFile:
+      if is_valid_manifest_entry(entry):
+        manifest.add(entry.rstrip())
+  return manifest
+
+def add_directories(manifest):
+  root = "/usr"
+  toplevels = {"/usr/share", "/usr/lib"}
+  directory_manifest = set()
+  for entry in manifest:
+    parsed_directory_structure = root
+    if entry[0] != '%':
+      directory_structure = entry[len(root):].split("/")
+      for folder in directory_structure[1:-1]:
+        parsed_directory_structure = parsed_directory_structure + "/" + folder
+        if parsed_directory_structure not in toplevels:
+          directory_manifest.add("%dir " + parsed_directory_structure)
+  return manifest.union(directory_manifest)
+
+if __name__ == '__main__':
+  name = sys.argv[1]
+  manifestPath = sys.argv[2]
+  manifest = extract_manifest(manifestPath)
+  manifest.add("%{{_datadir}}/{0}".format(name))
+  manifest.add("%{{python_sitelib}}/{0}*".format(name))
+  manifest.add("%{{_datadir}}/pkgconfig/{0}.pc".format(name))
+  with open("ros_install_manifest", mode="w") as manifestFile:
+    manifestFile.writelines(map(lambda str : str+"\\n", add_directories(manifest)))
+""")
