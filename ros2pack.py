@@ -32,30 +32,42 @@ class DependencyStateStore:
       self.unmarked_run.discard(package_name)
       self.marked_run.add(package_name)
 
+
+def RPMSpec_factory(packagePath, wsPath):
+  tree = etree.parse(packagePath+"/package.xml")
+  root = tree.getroot()
+  name = root.find('name').text
+  version = root.find('version').text
+  url = root.find('url').text
+  description = re.sub('\s+', ' ', root.find('description').text)
+  summary = description.split(".", 1)[0]
+  license = root.find('license').text
+  with subprocess.Popen(['wstool', 'info', '-t', wsPath, '--only', 'cur_uri', name], stdout=subprocess.PIPE, universal_newlines=True) as provided_source:
+    source = provided_source.stdout.readline()
+  def elementText(element):
+    return element.text
+  dependencies = DependencyStateStore(set(map(elementText,
+                                              root.findall('buildtool_depend'))),
+                                      set(map(elementText,
+                                              root.findall('build_depend'))),
+                                      set(map(elementText,
+                                              root.findall('run_depend'))))
+  with subprocess.Popen(["wstool", "info", "-t", wsPath, "--only", "localname"], stdout=subprocess.PIPE, universal_newlines=True) as provided_results:
+    for provided_result in provided_results.stdout:
+      provided = provided_result.rstrip()
+      dependencies.mark(provided)
+  return RPMSpec(name, version, source, url, description, summary, license, dependencies)
+
 class RPMSpec:
-  def __init__(self, xmlPath, wsPath):
-    tree = etree.parse(xmlPath)
-    root = tree.getroot()
-    self.name = root.find('name').text
-    self.version = root.find('version').text
-    self.url = root.find('url').text
-    self.description = re.sub('\s+', ' ', root.find('description').text)
-    self.summary = self.description.split(".", 1)[0]
-    self.license = root.find('license').text
-    with subprocess.Popen(['wstool', 'info', '-t', wsPath, '--only', 'cur_uri', self.name], stdout=subprocess.PIPE, universal_newlines=True) as provided_source:
-      self.source = provided_source.stdout.readline()
-    def elementText(element):
-      return element.text
-    self.dependencies = DependencyStateStore(set(map(elementText,
-                                                     root.findall('buildtool_depend'))),
-                                             set(map(elementText,
-                                                     root.findall('build_depend'))),
-                                             set(map(elementText,
-                                                     root.findall('run_depend'))))
-    with subprocess.Popen(["wstool", "info", "-t", wsPath, "--only", "localname"], stdout=subprocess.PIPE, universal_newlines=True) as provided_results:
-      for provided_result in provided_results.stdout:
-        provided = provided_result.rstrip()
-        self.dependencies.mark(provided)
+  def __init__(self, name, version, source, url, description, summary, license, dependencies):
+    self.name = name
+    self.version = version
+    self.source = source
+    self.url = url
+    self.description = description
+    self.summary = summary
+    self.license = license
+    self.dependencies = dependencies
 
   def render(self, stream):
     header_template = """
@@ -112,10 +124,10 @@ rosmanifestparser {name} build/install_manifest.txt
     stream.write(body.format(name=self.name))
 
 if __name__ == '__main__':
-  xmlPath = sys.argv[1]
+  packagePath = sys.argv[1]
   wsPath = sys.argv[2]
   destination = sys.argv[3]
-  spec = RPMSpec(xmlPath, wsPath)
+  spec = RPMSpec_factory(packagePath, wsPath)
   with open("{0}/{1}.spec".format(destination, PACKAGE_PREFIX.format(spec.name)), mode="w") as rpmSpec, open("{0}/{1}-rpmlintrc".format(destination, PACKAGE_PREFIX.format(spec.name)), mode="w") as lintFile:
     spec.render(rpmSpec)
     lintFile.write("setBadness('devel-file-in-non-devel-package', 0)")
