@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import re
+import os.path
 import xml.etree.ElementTree as etree
 
 PACKAGE_PREFIX = "ros-{0}"
@@ -56,10 +57,11 @@ def RPMSpec_factory(packagePath, wsPath):
     for provided_result in provided_results.stdout:
       provided = provided_result.rstrip()
       dependencies.mark(provided)
-  return RPMSpec(name, version, source, url, description, summary, license, dependencies)
+  has_python = os.path.isfile(packagePath + "/setup.py")
+  return RPMSpec(name, version, source, url, description, summary, license, dependencies, has_python)
 
 class RPMSpec:
-  def __init__(self, name, version, source, url, description, summary, license, dependencies):
+  def __init__(self, name, version, source, url, description, summary, license, dependencies, has_python):
     self.name = name
     self.version = version
     self.source = source
@@ -68,6 +70,7 @@ class RPMSpec:
     self.summary = summary
     self.license = license
     self.dependencies = dependencies
+    self.has_python = has_python
 
   def render(self, stream):
     header_template = """
@@ -114,14 +117,14 @@ rm %{{?buildroot}}/usr/.catkin %{{?buildroot}}/usr/.rosinstall \
 mkdir %{{?buildroot}}/usr/share/pkgconfig
 mv %{{?buildroot}}/usr/lib/pkgconfig/{name}.pc %{{?buildroot}}/usr/share/pkgconfig/
 rmdir %{{?buildroot}}/usr/lib/pkgconfig
-rosmanifestparser {name} build/install_manifest.txt
+rosmanifestparser {name} build/install_manifest.txt {has_python}
 
 %files -f ros_install_manifest
 %defattr(-,root,root)
 
 %changelog
 """
-    stream.write(body.format(name=self.name))
+    stream.write(body.format(name=self.name, has_python=self.has_python))
 
 if __name__ == '__main__':
   packagePath = sys.argv[1]
