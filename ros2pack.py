@@ -27,6 +27,10 @@ class DependencyStore:
     def __str__(self):
       if self._providedLocal:
         return PACKAGE_PREFIX.format(self._name)
+      with subprocess.Popen(['rosdep', 'resolve', self._name], stdout=subprocess.PIPE, universal_newlines=True) as rosdep_stream:
+        rosdep_result = rosdep_stream.stdout.readlines()
+        if len(rosdep_result) == 2:
+          return rosdep_result[1]
       return self._name
 
   def __init__(self, buildtool_depends, build_depends, run_depends):
