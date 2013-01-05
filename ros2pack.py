@@ -6,33 +6,47 @@ import xml.etree.ElementTree as etree
 
 PACKAGE_PREFIX = "ros-{0}"
 
-class DependencyStateStore:
+class DependencyStore:
+  class Dependency:
+    def __init__(self, name):
+      self._name = name
+      self._providedLocal = False
+
+    @property
+    def name(self):
+      return self.name
+
+    @property
+    def providedLocal(self):
+      return self._providedLocal
+
+    @providedLocal.setter
+    def providedLocal(self, value):
+      self._providedLocal = value
+
+    def __str__(self):
+      if self._providedLocal:
+        return PACKAGE_PREFIX.format(self._name)
+      return self._name
+
   def __init__(self, buildtool_depends, build_depends, run_depends):
-    self.unmarked_build = build_depends.union(buildtool_depends)
-    self.unmarked_run = run_depends
-    self.marked_build = set()
-    self.marked_run = set()
-
-  def _prefix_marked_packages(self, packages):
-    return set(map(lambda pkg: PACKAGE_PREFIX.format(pkg),
-                   packages))
-
-  def build_packages(self):
-    return self.unmarked_build.union(self._prefix_marked_packages(self.marked_build))
-  def run_packages(self):
-    return self.unmarked_run.union(self._prefix_marked_packages(self.marked_run))
+    self._build = {p:DependencyStore.Dependency(p) for p in build_depends + buildtool_depends}
+    self._run = {p:DependencyStore.Dependency(p) for p in run_depends}
 
   def __str__(self):
-    return self.build_packages().union(self.run_packages()).__str__()
+    return (self._build + self._run).__str__()
 
   def mark(self, package_name):
-    if package_name in self.unmarked_build:
-      self.unmarked_build.discard(package_name)
-      self.marked_build.add(package_name)
-    if package_name in self.unmarked_run:
-      self.unmarked_run.discard(package_name)
-      self.marked_run.add(package_name)
+    if package_name in self._build:
+      self._build[package_name].providedLocal = True
+    if package_name in self._run:
+      self._run[package_name].providedLocal = True
 
+  def build_packages(self):
+    return self._build.values()
+
+  def run_packages(self):
+    return self._run.values()
 
 def RPMSpec_factory(packagePath, wsPath):
   tree = etree.parse(packagePath+"/package.xml")
@@ -47,11 +61,11 @@ def RPMSpec_factory(packagePath, wsPath):
     source = provided_source.stdout.readline()
   def elementText(element):
     return element.text
-  dependencies = DependencyStateStore(set(map(elementText,
+  dependencies = DependencyStore(list(map(elementText,
                                               root.findall('buildtool_depend'))),
-                                      set(map(elementText,
+                                      list(map(elementText,
                                               root.findall('build_depend'))),
-                                      set(map(elementText,
+                                      list(map(elementText,
                                               root.findall('run_depend'))))
   with subprocess.Popen(["wstool", "info", "-t", wsPath, "--only", "localname"], stdout=subprocess.PIPE, universal_newlines=True) as provided_results:
     for provided_result in provided_results.stdout:
