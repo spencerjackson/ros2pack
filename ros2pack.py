@@ -151,4 +151,5 @@ if __name__ == '__main__':
   spec = RPMSpec_factory(packagePath, wsPath)
   with open("{0}/{1}.spec".format(destination, PACKAGE_PREFIX.format(spec.name)), mode="w") as rpmSpec, open("{0}/{1}-rpmlintrc".format(destination, PACKAGE_PREFIX.format(spec.name)), mode="w") as lintFile:
     spec.render(rpmSpec)
-    lintFile.write("setBadness('devel-file-in-non-devel-package', 0)")
+    lintFile.write("""setBadness('devel-file-in-non-devel-package', 0)
+setBadness('shlib-policy-name-error', 0)""")
