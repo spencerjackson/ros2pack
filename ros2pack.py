@@ -65,7 +65,8 @@ def RPMSpec_factory(packagePath, wsPath):
     for string in iterator:
       buf = buf + string
     return buf
-  description = re.sub('\s+', ' ', extract_all_text(root.find('description').itertext()))
+  description = re.sub('\s+', ' ', extract_all_text(root.find('description').itertext()))[1:-1]
+  description = description[0].upper() + description[1:]
   summary = description.split(".", 1)[0]
   license = root.find('license').text
   with subprocess.Popen(['wstool', 'info', '-t', wsPath, '--only', 'cur_uri', name], stdout=subprocess.PIPE, universal_newlines=True) as provided_source:
