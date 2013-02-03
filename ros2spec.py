@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import subprocess
 import sys
 import re
@@ -76,6 +78,7 @@ def RPMSpec_factory(packagePath, wsPath, override):
     summary = override.summary
   else:
     summary = description.split(".", 1)[0]
+  patches = override.patches
   license = root.find('license').text
   with subprocess.Popen(['wstool', 'info', '-t', wsPath, '--only', 'cur_uri', name], stdout=subprocess.PIPE, universal_newlines=True) as provided_source:
     source = provided_source.stdout.readline()
@@ -92,14 +95,15 @@ def RPMSpec_factory(packagePath, wsPath, override):
       provided = provided_result.rstrip()
       dependencies.mark(provided)
   has_python = os.path.isfile(packagePath + "/setup.py")
-  return RPMSpec(name, version, source, url, description, summary, license, dependencies, has_python)
+  return RPMSpec(name, version, source, url, patches, description, summary, license, dependencies, has_python)
 
 class RPMSpec:
-  def __init__(self, name, version, source, url, description, summary, license, dependencies, has_python):
+  def __init__(self, name, version, source, url, patches, description, summary, license, dependencies, has_python):
     self.name = name
     self.version = version
     self.source = source
     self.url = url
+    self.patches = patches
     self.description = description
     self.summary = summary
     self.license = license
@@ -118,8 +122,15 @@ Url:	{url}
 Group:	Productivity/Scientific/Other
 Source0:	{source}
 Source1:	{pkg_name}-rpmlintrc
+"""
+    header_patches = ""
+    patch_number = 0
+    for patch in self.patches:
+      header_patches += "Patch{0}:	{1}\n".format(patch_number, patch)
+      patch_number += 1
 
-BuildRequires:  python-devel
+
+    header_default_requires = """BuildRequires:  python-devel
 BuildRequires:  gcc-c++
 BuildRequires:  python-rosmanifestparser
 """
@@ -127,6 +138,8 @@ BuildRequires:  python-rosmanifestparser
                                         version=self.version, license=self.license,
                                         summary=self.summary, url=self.url,
                                         source=self.source))
+    stream.write(header_patches)
+    stream.write(header_default_requires)
 
     for build_dependency in self.dependencies.build_packages():
       stream.write("BuildRequires:	{0}\n".format(build_dependency))
@@ -138,9 +151,12 @@ BuildRequires:  python-rosmanifestparser
 %prep
 %setup -q -c -n workspace
 mv * {name}
-mkdir src
+"""
+    patch_number = 0
+    for patch in self.patches:
+      body += "%patch{0} -p0\n".format(patch_number)
+    body += """mkdir src
 mv {name} src
-
 %build
 CMAKE_PREFIX_PATH=/usr catkin_make -DSETUPTOOLS_DEB_LAYOUT="OFF" -DCMAKE_INSTALL_PREFIX=/usr
 
@@ -162,9 +178,10 @@ rosmanifestparser {name} build/install_manifest.txt %{{?buildroot}} {has_python}
     stream.write(body.format(name=self.name, has_python=self.has_python))
 
 class PackageOverride:
-  def __init__(self, summary = None, description = None, ignore = False):
+  def __init__(self, summary = None, description = None, patches = list(), ignore = False):
     self.summary = summary
     self.description = description
+    self.patches = patches
     self.ignore = ignore
 
 def generate_override(element):
@@ -179,7 +196,10 @@ def generate_override(element):
     ignore = False
   else:
     ignore = True
-  return PackageOverride(summary, description, ignore)
+  patches = list()
+  for patch in element.findall('patch'):
+    patches.insert(0, patch.attrib['name'])
+  return PackageOverride(summary, description, patches, ignore)
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="Generate RPM spec files from ROS packages")
