@@ -54,20 +54,28 @@ class DependencyStore:
   def run_packages(self):
     return self._run.values()
 
-def RPMSpec_factory(packagePath, wsPath):
+def extract_all_text(element):
+  buf = ""
+  for string in element.itertext():
+    buf = buf + string
+  return buf
+
+def RPMSpec_factory(packagePath, wsPath, override):
   tree = etree.parse(packagePath+"/package.xml")
   root = tree.getroot()
   name = root.find('name').text
   version = root.find('version').text
   url = root.find('url').text
-  def extract_all_text(iterator):
-    buf = ""
-    for string in iterator:
-      buf = buf + string
-    return buf
-  description = re.sub('\s+', ' ', extract_all_text(root.find('description').itertext()))[1:-1]
-  description = description[0].upper() + description[1:]
-  summary = description.split(".", 1)[0]
+
+  if override.description != None:
+    description = override.description
+  else:
+    description = re.sub('\s+', ' ', extract_all_text(root.find('description')))[1:-1]
+    description = description[0].upper() + description[1:]
+  if override.summary != None:
+    summary = override.summary
+  else:
+    summary = description.split(".", 1)[0]
   license = root.find('license').text
   with subprocess.Popen(['wstool', 'info', '-t', wsPath, '--only', 'cur_uri', name], stdout=subprocess.PIPE, universal_newlines=True) as provided_source:
     source = provided_source.stdout.readline()
@@ -153,6 +161,26 @@ rosmanifestparser {name} build/install_manifest.txt %{{?buildroot}} {has_python}
 """
     stream.write(body.format(name=self.name, has_python=self.has_python))
 
+class PackageOverride:
+  def __init__(self, summary = None, description = None, ignore = False):
+    self.summary = summary
+    self.description = description
+    self.ignore = ignore
+
+def generate_override(element):
+  summary = element.find('summary')
+  if summary != None:
+    summary = extract_all_text(summary)
+  description = element.find('description')
+  if description != None:
+    description = extract_all_text(description)
+  ignore = element.find('ignore')
+  if ignore == None:
+    ignore = False
+  else:
+    ignore = True
+  return PackageOverride(summary, description, ignore)
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="Generate RPM spec files from ROS packages")
   parser.add_argument('workspace', type=str,
@@ -162,12 +190,25 @@ if __name__ == '__main__':
   parser.add_argument('destination', type=str,
                       help='path to the spec root')
   args = parser.parse_args()
+
+  workspace_config = etree.parse(args.workspace+'/.ros2py.xml').getroot()
+  overrides = dict()
+  for package in workspace_config:
+    overrides[package.attrib['name']] = generate_override(package)
+
   if args.packages == None:
     packages = [name for name in os.listdir(args.workspace+"/src") if os.path.isdir(args.workspace+"/src/"+name)]
   else:
     packages = args.packages
+
   for package in packages:
-    spec = RPMSpec_factory(args.workspace+"/src/"+package, args.workspace+"/src")
+    try:
+      override = overrides[package]
+    except KeyError:
+      override = PackageOverride()
+    if override.ignore:
+      continue
+    spec = RPMSpec_factory(args.workspace+"/src/"+package, args.workspace+"/src", override)
     target_dir = args.destination+"/"+PACKAGE_PREFIX.format(package)
     if not os.path.exists(target_dir):
       os.makedirs(target_dir)
