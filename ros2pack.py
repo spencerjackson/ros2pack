@@ -91,7 +91,8 @@ class RPMSpec:
     self.has_python = has_python
 
   def render(self, stream):
-    header_template = """
+    header_template = """%define __pkgconfig_path {{""}}
+
 Name:	{pkg_name}
 Version:	{version}
 Release:	0
