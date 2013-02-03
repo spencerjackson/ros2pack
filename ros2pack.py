@@ -3,6 +3,7 @@ import sys
 import re
 import os.path
 import xml.etree.ElementTree as etree
+import argparse
 
 PACKAGE_PREFIX = "ros-{0}"
 
@@ -146,11 +147,24 @@ rosmanifestparser {name} build/install_manifest.txt %{{?buildroot}} {has_python}
     stream.write(body.format(name=self.name, has_python=self.has_python))
 
 if __name__ == '__main__':
-  packagePath = sys.argv[1]
-  wsPath = sys.argv[2]
-  destination = sys.argv[3]
-  spec = RPMSpec_factory(packagePath, wsPath)
-  with open("{0}/{1}.spec".format(destination, PACKAGE_PREFIX.format(spec.name)), mode="w") as rpmSpec, open("{0}/{1}-rpmlintrc".format(destination, PACKAGE_PREFIX.format(spec.name)), mode="w") as lintFile:
-    spec.render(rpmSpec)
-    lintFile.write("""setBadness('devel-file-in-non-devel-package', 0)
+  parser = argparse.ArgumentParser(description="Generate RPM spec files from ROS packages")
+  parser.add_argument('workspace', type=str,
+                      help='path to the root of the workspace')
+  parser.add_argument('--packages', type=str, dest='packages', nargs='+',
+                       help='process only the specifed packages')
+  parser.add_argument('destination', type=str,
+                      help='path to the spec root')
+  args = parser.parse_args()
+  if args.packages == None:
+    packages = [name for name in os.listdir(args.workspace+"/src") if os.path.isdir(args.workspace+"/src/"+name)]
+  else:
+    packages = args.packages
+  for package in packages:
+    spec = RPMSpec_factory(args.workspace+"/src/"+package, args.workspace+"/src")
+    target_dir = args.destination+"/"+PACKAGE_PREFIX.format(package)
+    if not os.path.exists(target_dir):
+      os.makedirs(target_dir)
+    with open("{0}/{1}.spec".format(target_dir, PACKAGE_PREFIX.format(spec.name)), mode="w") as rpmSpec, open("{0}/{1}-rpmlintrc".format(target_dir, PACKAGE_PREFIX.format(spec.name)), mode="w") as lintFile:
+      spec.render(rpmSpec)
+      lintFile.write("""setBadness('devel-file-in-non-devel-package', 0)
 setBadness('shlib-policy-name-error', 0)""")
