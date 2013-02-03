@@ -191,7 +191,7 @@ if __name__ == '__main__':
                       help='path to the spec root')
   args = parser.parse_args()
 
-  workspace_config = etree.parse(args.workspace+'/.ros2py.xml').getroot()
+  workspace_config = etree.parse(args.workspace+'/.ros2spec.xml').getroot()
   overrides = dict()
   for package in workspace_config:
     overrides[package.attrib['name']] = generate_override(package)
