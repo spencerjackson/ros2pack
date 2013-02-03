@@ -135,7 +135,7 @@ rm %{{?buildroot}}/usr/.catkin %{{?buildroot}}/usr/.rosinstall \
 mkdir %{{?buildroot}}/usr/share/pkgconfig
 mv %{{?buildroot}}/usr/lib/pkgconfig/{name}.pc %{{?buildroot}}/usr/share/pkgconfig/
 rmdir %{{?buildroot}}/usr/lib/pkgconfig
-rosmanifestparser {name} build/install_manifest.txt {has_python}
+rosmanifestparser {name} build/install_manifest.txt %{{?buildroot}} {has_python}
 
 %files -f ros_install_manifest
 %defattr(-,root,root)
