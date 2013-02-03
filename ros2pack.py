@@ -4,6 +4,7 @@ import re
 import os.path
 import xml.etree.ElementTree as etree
 import argparse
+import urllib.request
 
 PACKAGE_PREFIX = "ros-{0}"
 
@@ -94,7 +95,7 @@ class RPMSpec:
   def render(self, stream):
     header_template = """%define __pkgconfig_path {{""}}
 
-Name:	{pkg_name}
+Name:		{pkg_name}
 Version:	{version}
 Release:	0
 License:	{license}
@@ -164,6 +165,7 @@ if __name__ == '__main__':
     target_dir = args.destination+"/"+PACKAGE_PREFIX.format(package)
     if not os.path.exists(target_dir):
       os.makedirs(target_dir)
+    urllib.request.urlretrieve(spec.source, target_dir+"/"+spec.source.rsplit("/",2)[-1][0:-1])
     with open("{0}/{1}.spec".format(target_dir, PACKAGE_PREFIX.format(spec.name)), mode="w") as rpmSpec, open("{0}/{1}-rpmlintrc".format(target_dir, PACKAGE_PREFIX.format(spec.name)), mode="w") as lintFile:
       spec.render(rpmSpec)
       lintFile.write("""setBadness('devel-file-in-non-devel-package', 0)
