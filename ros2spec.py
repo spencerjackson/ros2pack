@@ -62,7 +62,20 @@ def extract_all_text(element):
     buf = buf + string
   return buf
 
+def has_no_architecture(cmake_text):
+    return re.search("add_library", cmake_text, re.IGNORECASE) == None and re.search("add_executable", cmake_text, re.IGNORECASE) == None and re.search("catkin_add_gtest", cmake_text, re.IGNORECASE) == None
+
 def RPMSpec_factory(packagePath, wsPath, override):
+  no_arch = True
+  cmake_files = {packagePath}
+  while cmake_files:
+    cmake_path = cmake_files.pop()
+    with open(os.path.join(cmake_path, "CMakeLists.txt"), "r") as cmake_file:
+      cmake_text = cmake_file.read()
+      no_arch = no_arch and has_no_architecture(cmake_text)
+      for match in re.finditer("add_subdirectory\((.+)\)", cmake_text, re.IGNORECASE):
+        cmake_files.add(os.path.join(cmake_path, match.group(1)))
+
   tree = etree.parse(packagePath+"/package.xml")
   root = tree.getroot()
   name = root.find('name').text
@@ -95,10 +108,10 @@ def RPMSpec_factory(packagePath, wsPath, override):
       provided = provided_result.rstrip()
       dependencies.mark(provided)
   has_python = os.path.isfile(packagePath + "/setup.py")
-  return RPMSpec(name, version, source, url, patches, description, summary, license, dependencies, has_python)
+  return RPMSpec(name, version, source, url, patches, description, summary, license, dependencies, has_python, no_arch)
 
 class RPMSpec:
-  def __init__(self, name, version, source, url, patches, description, summary, license, dependencies, has_python):
+  def __init__(self, name, version, source, url, patches, description, summary, license, dependencies, has_python, no_arch):
     self.name = name
     self.version = version
     self.source = source
@@ -109,6 +122,7 @@ class RPMSpec:
     self.license = license
     self.dependencies = dependencies
     self.has_python = has_python
+    self.no_arch = no_arch
 
   def render(self, stream):
     header_template = """%define __pkgconfig_path {{""}}
@@ -128,7 +142,6 @@ Source1:	{pkg_name}-rpmlintrc
     for patch in self.patches:
       header_patches += "Patch{0}:	{1}\n".format(patch_number, patch)
       patch_number += 1
-
 
     header_default_requires = """BuildRequires:  python-devel
 BuildRequires:  gcc-c++
