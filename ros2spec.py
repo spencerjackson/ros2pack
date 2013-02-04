@@ -72,7 +72,7 @@ def RPMSpec_factory(packagePath, wsPath, override):
   if override.description != None:
     description = override.description
   else:
-    description = re.sub('\s+', ' ', extract_all_text(root.find('description')))[1:-1]
+    description = re.sub('\s+', ' ', extract_all_text(root.find('description'))).strip()
     description = description[0].upper() + description[1:]
   if override.summary != None:
     summary = override.summary
