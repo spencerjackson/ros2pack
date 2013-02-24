@@ -68,13 +68,16 @@ def has_no_architecture(cmake_text):
 def RPMSpec_factory(packagePath, wsPath, override):
   no_arch = True
   cmake_files = {packagePath}
-  while cmake_files:
-    cmake_path = cmake_files.pop()
-    with open(os.path.join(cmake_path, "CMakeLists.txt"), "r") as cmake_file:
-      cmake_text = cmake_file.read()
-      no_arch = no_arch and has_no_architecture(cmake_text)
-      for match in re.finditer("add_subdirectory\((.+)\)", cmake_text, re.IGNORECASE):
-        cmake_files.add(os.path.join(cmake_path, match.group(1)))
+  try:
+    while cmake_files:
+      cmake_path = cmake_files.pop()
+      with open(os.path.join(cmake_path, "CMakeLists.txt"), "r") as cmake_file:
+        cmake_text = cmake_file.read()
+        no_arch = no_arch and has_no_architecture(cmake_text)
+        for match in re.finditer("add_subdirectory\((.+)\)", cmake_text, re.IGNORECASE):
+          cmake_files.add(os.path.join(cmake_path, match.group(1)))
+  except IOError:
+    pass
 
   tree = etree.parse(packagePath+"/package.xml")
   root = tree.getroot()
@@ -140,10 +143,13 @@ Source1:	{pkg_name}-rpmlintrc
     header_patches = ""
     patch_number = 0
     for patch in self.patches:
-      header_patches += "Patch{0}:	{1}\n".format(patch_number, patch)
+      header_template += "Patch{0}:	{1}\n".format(patch_number, patch)
       patch_number += 1
 
-    header_default_requires = """BuildRequires:  python-devel
+    if self.no_arch:
+      header_template += "BuildArch:      noarch\n"
+
+    header_template += """BuildRequires:  python-devel
 BuildRequires:  gcc-c++
 BuildRequires:  python-rosmanifestparser
 """
@@ -151,8 +157,6 @@ BuildRequires:  python-rosmanifestparser
                                         version=self.version, license=self.license,
                                         summary=self.summary, url=self.url,
                                         source=self.source))
-    stream.write(header_patches)
-    stream.write(header_default_requires)
 
     for build_dependency in self.dependencies.build_packages():
       stream.write("BuildRequires:	{0}\n".format(build_dependency))
