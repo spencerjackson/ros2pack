@@ -245,7 +245,10 @@ if __name__ == '__main__':
 
   package_paths = package_path_map_factory(args.workspace)
 
-  if args.packages != None:
+  if args.packages == None:
+    all_packages = [name for name in os.listdir(os.path.join(args.workspace,"src")) if os.path.isdir(os.path.join(args.workspace, "src", name))]
+    packages = dict([(k,package_paths[k]) for k in all_packages if k in package_paths])
+  else:
     packages = dict([(k,package_paths[k]) for k in args.packages if k in package_paths])
 
   for (package, path) in packages.items():
