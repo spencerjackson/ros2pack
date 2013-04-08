@@ -58,8 +58,9 @@ class DependencyStore:
 
 def extract_all_text(element):
   buf = ""
-  for string in element.itertext():
-    buf = buf + string
+  for stringList in element.itertext():
+    for string in stringList:
+      buf = buf + string
   return buf
 
 def has_no_architecture(cmake_text):
