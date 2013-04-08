@@ -96,8 +96,10 @@ def RPMSpec_factory(packagePath, wsPath, override):
     summary = description.split(".", 1)[0]
   patches = override.patches
   license = root.find('license').text
-  with subprocess.Popen(['wstool', 'info', '-t', wsPath, '--only', 'cur_uri', name], stdout=subprocess.PIPE, universal_newlines=True) as provided_source:
+  with subprocess.Popen(['wstool', 'info', '-t', wsPath, '--only', 'cur_uri', name], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True) as provided_source:
     source = provided_source.stdout.readline()
+    if source.startswith("ERROR"):
+      source = None
   def elementText(element):
     return element.text
   dependencies = DependencyStore(list(map(elementText,
@@ -218,6 +220,14 @@ def generate_override(element):
     patches.insert(0, patch.attrib['name'])
   return PackageOverride(summary, description, patches, ignore)
 
+def package_path_map_factory(workspace):
+  mapping = {}
+  for (root, subfolders, files) in os.walk(os.path.join(workspace, "src")):
+    for found in files:
+      if found == "package.xml":
+        mapping[etree.parse(os.path.join(root, found)).getroot().find("name").text] = root
+  return mapping
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="Generate RPM spec files from ROS packages")
   parser.add_argument('workspace', type=str,
@@ -233,23 +243,26 @@ if __name__ == '__main__':
   for package in workspace_config:
     overrides[package.attrib['name']] = generate_override(package)
 
-  if args.packages == None:
-    packages = [name for name in os.listdir(args.workspace+"/src") if os.path.isdir(args.workspace+"/src/"+name)]
-  else:
-    packages = args.packages
+  package_paths = package_path_map_factory(args.workspace)
 
-  for package in packages:
+  if args.packages != None:
+    packages = dict([(k,package_paths[k]) for k in args.packages if k in package_paths])
+
+  for (package, path) in packages.items():
     try:
       override = overrides[package]
     except KeyError:
       override = PackageOverride()
     if override.ignore:
       continue
-    spec = RPMSpec_factory(args.workspace+"/src/"+package, args.workspace+"/src", override)
+    spec = RPMSpec_factory(path, args.workspace+"/src", override)
     target_dir = args.destination+"/"+PACKAGE_PREFIX.format(package)
     if not os.path.exists(target_dir):
       os.makedirs(target_dir)
-    urllib.request.urlretrieve(spec.source, target_dir+"/"+spec.source.rsplit("/",2)[-1][0:-1])
+    if spec.source:
+      urllib.request.urlretrieve(spec.source, target_dir+"/"+spec.source.rsplit("/",2)[-1][0:-1])
+    else:
+      print("Unable to retrieve source")
     with open("{0}/{1}.spec".format(target_dir, PACKAGE_PREFIX.format(spec.name)), mode="w") as rpmSpec, open("{0}/{1}-rpmlintrc".format(target_dir, PACKAGE_PREFIX.format(spec.name)), mode="w") as lintFile:
       spec.render(rpmSpec)
       lintFile.write("""setBadness('devel-file-in-non-devel-package', 0)
