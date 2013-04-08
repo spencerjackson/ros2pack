@@ -177,10 +177,10 @@ mv * {name}
     body += """mkdir src
 mv {name} src
 %build
-CMAKE_PREFIX_PATH=/usr catkin_make -DSETUPTOOLS_DEB_LAYOUT="OFF" -DCMAKE_INSTALL_PREFIX=/usr
+CMAKE_PREFIX_PATH=/usr catkin_make -DSETUPTOOLS_DEB_LAYOUT="OFF"
 
 %install
-catkin_make install DESTDIR=%{{?buildroot}}
+catkin_make -DCMAKE_INSTALL_PREFIX=/usr install DESTDIR=%{{?buildroot}}
 rm %{{?buildroot}}/usr/.catkin %{{?buildroot}}/usr/.rosinstall \
    %{{?buildroot}}/usr/env.sh %{{?buildroot}}/usr/_setup_util.py \
    %{{?buildroot}}/usr/setup*
