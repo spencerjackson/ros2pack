@@ -263,7 +263,10 @@ if __name__ == '__main__':
     if not os.path.exists(target_dir):
       os.makedirs(target_dir)
     if spec.source:
-      urllib.request.urlretrieve(spec.source, target_dir+"/"+spec.source.rsplit("/",2)[-1][0:-1])
+      with open("{0}/_service".format(target_dir), mode="w") as serviceFile:
+        serviceFile.write("""<services>
+  <service name="download_files"/>
+</services>""")
     else:
       print("Unable to retrieve source")
     with open("{0}/{1}.spec".format(target_dir, PACKAGE_PREFIX.format(spec.name)), mode="w") as rpmSpec, open("{0}/{1}-rpmlintrc".format(target_dir, PACKAGE_PREFIX.format(spec.name)), mode="w") as lintFile:
