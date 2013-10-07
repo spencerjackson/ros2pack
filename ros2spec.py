@@ -8,6 +8,7 @@ import urllib.request
 
 PACKAGE_PREFIX = "ros-{0}"
 
+# Encapsulates a list of dependencies
 class DependencyStore:
   class Dependency:
     def __init__(self, name):
@@ -29,7 +30,10 @@ class DependencyStore:
     def __str__(self):
       if self._providedLocal:
         return PACKAGE_PREFIX.format(self._name)
-      with subprocess.Popen(['rosdep', 'resolve', self._name], stdout=subprocess.PIPE, universal_newlines=True) as rosdep_stream:
+      with subprocess.Popen(
+        ['rosdep', 'resolve', self._name], 
+        stdout=subprocess.PIPE, universal_newlines=True
+      ) as rosdep_stream:
         rosdep_result = rosdep_stream.stdout.readlines()
         if len(rosdep_result) == 2:
           return rosdep_result[1]
@@ -70,30 +74,40 @@ def RPMSpec_factory(packagePath, wsPath, override):
   if override.description != None:
     description = override.description
   else:
-    description = re.sub('\s+', ' ', extract_all_text(root.find('description')))[1:-1]
+    description = re.sub('\s+', ' ', extract_all_text(root.find('description'))).strip()
     description = description[0].upper() + description[1:]
+  
   if override.summary != None:
     summary = override.summary
   else:
     summary = description.split(".", 1)[0]
+
   license = root.find('license').text
-  with subprocess.Popen(['wstool', 'info', '-t', wsPath, '--only', 'cur_uri', name], stdout=subprocess.PIPE, universal_newlines=True) as provided_source:
+  with subprocess.Popen(
+    ['wstool', 'info', '-t', wsPath, '--only', 'cur_uri', name], 
+    stdout = subprocess.PIPE, universal_newlines = True
+  ) as provided_source:
     source = provided_source.stdout.readline()
   def elementText(element):
     return element.text
   dependencies = DependencyStore(list(map(elementText,
-                                              root.findall('buildtool_depend'))),
-                                      list(map(elementText,
-                                              root.findall('build_depend'))),
-                                      list(map(elementText,
-                                              root.findall('run_depend'))))
-  with subprocess.Popen(["wstool", "info", "-t", wsPath, "--only", "localname"], stdout=subprocess.PIPE, universal_newlines=True) as provided_results:
+                                          root.findall('buildtool_depend'))),
+                                 list(map(elementText,
+                                          root.findall('build_depend'))),
+                                 list(map(elementText,
+                                          root.findall('run_depend'))))
+  with subprocess.Popen(
+    ["wstool", "info", "-t", wsPath, "--only", "localname"], 
+    stdout = subprocess.PIPE, universal_newlines = True
+  ) as provided_results:
     for provided_result in provided_results.stdout:
-      provided = provided_result.rstrip()
+      provided = provided_result.strip()
       dependencies.mark(provided)
   has_python = os.path.isfile(packagePath + "/setup.py")
-  return RPMSpec(name, version, source, url, description, summary, license, dependencies, has_python)
+  return RPMSpec(name, version, source, url, description, summary, 
+                 license, dependencies, has_python)
 
+# Class to model an RPM spec
 class RPMSpec:
   def __init__(self, name, version, source, url, description, summary, license, dependencies, has_python):
     self.name = name
@@ -109,15 +123,15 @@ class RPMSpec:
   def render(self, stream):
     header_template = """%define __pkgconfig_path {{""}}
 
-Name:		{pkg_name}
-Version:	{version}
-Release:	0
-License:	{license}
-Summary:	{summary}
-Url:	{url}
-Group:	Productivity/Scientific/Other
-Source0:	{source}
-Source1:	{pkg_name}-rpmlintrc
+Name:		        {pkg_name}
+Version:	      {version}
+Release:	      0
+License:	      {license}
+Summary:	      {summary}
+Url:	          {url}
+Group:	        Productivity/Scientific/Other
+Source0:	      {source}
+Source1:	      {pkg_name}-rpmlintrc
 
 BuildRequires:  python-devel
 BuildRequires:  gcc-c++
@@ -131,7 +145,7 @@ BuildRequires:  python-rosmanifestparser
     for build_dependency in self.dependencies.build_packages():
       stream.write("BuildRequires:	{0}\n".format(build_dependency))
     for run_dependency in self.dependencies.run_packages():
-      stream.write("Requires:	{0}\n".format(run_dependency))
+      stream.write("Requires:	      {0}\n".format(run_dependency))
     stream.write("\n%description\n{0}\n".format(self.description))
 
     body = """
@@ -161,6 +175,7 @@ rosmanifestparser {name} build/install_manifest.txt %{{?buildroot}} {has_python}
 """
     stream.write(body.format(name=self.name, has_python=self.has_python))
 
+# Allows overriding summary and description, and allows ignoring a package
 class PackageOverride:
   def __init__(self, summary = None, description = None, ignore = False):
     self.summary = summary
@@ -174,11 +189,7 @@ def generate_override(element):
   description = element.find('description')
   if description != None:
     description = extract_all_text(description)
-  ignore = element.find('ignore')
-  if ignore == None:
-    ignore = False
-  else:
-    ignore = True
+  ignore = (element.find('ignore') != None)
   return PackageOverride(summary, description, ignore)
 
 if __name__ == '__main__':
@@ -196,8 +207,9 @@ if __name__ == '__main__':
   for package in workspace_config:
     overrides[package.attrib['name']] = generate_override(package)
 
+  srcdir = args.workspace + "/src/"
   if args.packages == None:
-    packages = [name for name in os.listdir(args.workspace+"/src") if os.path.isdir(args.workspace+"/src/"+name)]
+    packages = [name for name in os.listdir(srcdir) if os.path.isdir(srcdir + name)]
   else:
     packages = args.packages
 
@@ -208,12 +220,16 @@ if __name__ == '__main__':
       override = PackageOverride()
     if override.ignore:
       continue
-    spec = RPMSpec_factory(args.workspace+"/src/"+package, args.workspace+"/src", override)
+    spec = RPMSpec_factory(srcdir + package, srcdir, override)
     target_dir = args.destination+"/"+PACKAGE_PREFIX.format(package)
     if not os.path.exists(target_dir):
       os.makedirs(target_dir)
+    print ("Source is: " + spec.source)
+    print (target_dir+"/"+spec.source.rsplit("/",2)[-1][0:-1])
     urllib.request.urlretrieve(spec.source, target_dir+"/"+spec.source.rsplit("/",2)[-1][0:-1])
-    with open("{0}/{1}.spec".format(target_dir, PACKAGE_PREFIX.format(spec.name)), mode="w") as rpmSpec, open("{0}/{1}-rpmlintrc".format(target_dir, PACKAGE_PREFIX.format(spec.name)), mode="w") as lintFile:
+    p = target_dir + "/" + PACKAGE_PREFIX.format(spec.name)
+    with open(p + ".spec", mode="w") as rpmSpec:
       spec.render(rpmSpec)
+    with open(p + "-rpmlintrc", mode="w") as lintFile:
       lintFile.write("""setBadness('devel-file-in-non-devel-package', 0)
 setBadness('shlib-policy-name-error', 0)""")
