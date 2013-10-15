@@ -6,6 +6,9 @@ import xml.etree.ElementTree as etree
 import argparse
 import urllib.request
 
+# Remove me!
+import pdb
+
 PACKAGE_PREFIX = "ros-{0}"
 
 # Encapsulates a list of dependencies
@@ -58,11 +61,14 @@ class DependencyStore:
   def run_packages(self):
     return self._run.values()
 
+
 def extract_all_text(element):
-  buf = ""
-  for string in element.itertext():
-    buf = buf + string
-  return buf
+  mod_lst = []
+  for text in element.itertext():
+    if type(text) == list:
+      text = "".join(text)
+    mod_lst.append(text)
+  return re.sub('\s+', ' ', "".join(mod_lst).strip())
 
 def RPMSpec_factory(packagePath, wsPath, override):
   tree = etree.parse(packagePath+"/package.xml")
@@ -74,7 +80,7 @@ def RPMSpec_factory(packagePath, wsPath, override):
   if override.description != None:
     description = override.description
   else:
-    description = re.sub('\s+', ' ', extract_all_text(root.find('description'))).strip()
+    description = extract_all_text(root.find('description'))
     description = description[0].upper() + description[1:]
   
   if override.summary != None:
@@ -137,10 +143,10 @@ BuildRequires:  python-devel
 BuildRequires:  gcc-c++
 BuildRequires:  python-rosmanifestparser
 """
-    stream.write(header_template.format(pkg_name=PACKAGE_PREFIX.format(self.name),
-                                        version=self.version, license=self.license,
-                                        summary=self.summary, url=self.url,
-                                        source=self.source))
+    stream.write(header_template.format(pkg_name = PACKAGE_PREFIX.format(self.name),
+                                        version = self.version, license = self.license,
+                                        summary = self.summary, url = self.url,
+                                        source = self.source))
 
     for build_dependency in self.dependencies.build_packages():
       stream.write("BuildRequires:	{0}\n".format(build_dependency))
@@ -193,16 +199,16 @@ def generate_override(element):
   return PackageOverride(summary, description, ignore)
 
 if __name__ == '__main__':
-  parser = argparse.ArgumentParser(description="Generate RPM spec files from ROS packages")
-  parser.add_argument('workspace', type=str,
-                      help='path to the root of the workspace')
-  parser.add_argument('--packages', type=str, dest='packages', nargs='+',
-                       help='process only the specifed packages')
-  parser.add_argument('destination', type=str,
-                      help='path to the spec root')
+  parser = argparse.ArgumentParser(description = "Generate RPM spec files from ROS packages")
+  parser.add_argument('workspace', type = str,
+                      help = 'path to the root of the workspace')
+  parser.add_argument('--packages', type = str, dest = 'packages', nargs = '+',
+                       help = 'process only the specifed packages')
+  parser.add_argument('destination', type = str,
+                      help = 'path to the spec root')
   args = parser.parse_args()
 
-  workspace_config = etree.parse(args.workspace+'/.ros2spec.xml').getroot()
+  workspace_config = etree.parse(args.workspace + '/.ros2spec.xml').getroot()
   overrides = dict()
   for package in workspace_config:
     overrides[package.attrib['name']] = generate_override(package)
@@ -221,15 +227,15 @@ if __name__ == '__main__':
     if override.ignore:
       continue
     spec = RPMSpec_factory(srcdir + package, srcdir, override)
-    target_dir = args.destination+"/"+PACKAGE_PREFIX.format(package)
+    target_dir = args.destination + "/" + PACKAGE_PREFIX.format(package)
     if not os.path.exists(target_dir):
       os.makedirs(target_dir)
-    print ("Source is: " + spec.source)
-    print (target_dir+"/"+spec.source.rsplit("/",2)[-1][0:-1])
-    urllib.request.urlretrieve(spec.source, target_dir+"/"+spec.source.rsplit("/",2)[-1][0:-1])
+    local_uri = target_dir + "/" + spec.source.rsplit("/", 2)[-1][0:-1]
+    print('Source is ' + local_uri)
+    urllib.request.urlretrieve(spec.source, local_uri)
     p = target_dir + "/" + PACKAGE_PREFIX.format(spec.name)
-    with open(p + ".spec", mode="w") as rpmSpec:
+    with open(p + ".spec", mode = "w") as rpmSpec:
       spec.render(rpmSpec)
-    with open(p + "-rpmlintrc", mode="w") as lintFile:
+    with open(p + "-rpmlintrc", mode = "w") as lintFile:
       lintFile.write("""setBadness('devel-file-in-non-devel-package', 0)
 setBadness('shlib-policy-name-error', 0)""")
