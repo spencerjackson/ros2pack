@@ -61,7 +61,7 @@ class DependencyStore:
   def run_packages(self):
     return self._run.values()
 
-
+# Extracts the text from a node, stripping any tags and removing excess whitespace
 def extract_all_text(element):
   mod_lst = []
   for text in element.itertext():
@@ -90,10 +90,15 @@ def RPMSpec_factory(packagePath, wsPath, override):
 
   license = root.find('license').text
   with subprocess.Popen(
-    ['wstool', 'info', '-t', wsPath, '--only', 'cur_uri', name], 
+    ['wstool', 'info', '-t', wsPath, '--only', 'cur_uri,version', name], 
     stdout = subprocess.PIPE, universal_newlines = True
-  ) as provided_source:
-    source = provided_source.stdout.readline()
+  ) as wstool:
+    str_out = re.sub('\n', '', wstool.stdout.readline())
+    if "ros-gbp" in str_out:
+      source = re.sub('\.git,', '/archive/', str_out) + '.tar.gz'
+      print("Derived source tarball URL: " + source)
+    else:
+      source = re.sub(',.*', '', str_out)
   def elementText(element):
     return element.text
   dependencies = DependencyStore(list(map(elementText,
@@ -213,12 +218,13 @@ if __name__ == '__main__':
   for package in workspace_config:
     overrides[package.attrib['name']] = generate_override(package)
 
-  srcdir = args.workspace + "/src/"
+  srcdir = args.workspace + '/src/'
   if args.packages == None:
     packages = [name for name in os.listdir(srcdir) if os.path.isdir(srcdir + name)]
   else:
     packages = args.packages
 
+  # subprocess.call(['osc', 'up'], cwd = args.destination)
   for package in packages:
     try:
       override = overrides[package]
@@ -226,16 +232,28 @@ if __name__ == '__main__':
       override = PackageOverride()
     if override.ignore:
       continue
-    spec = RPMSpec_factory(srcdir + package, srcdir, override)
-    target_dir = args.destination + "/" + PACKAGE_PREFIX.format(package)
+    print('\n')
+    spec = RPMSpec_factory(srcdir + '/' + package, srcdir, override)
+    target_dir = args.destination + '/' + PACKAGE_PREFIX.format(package)
     if not os.path.exists(target_dir):
-      os.makedirs(target_dir)
-    local_uri = target_dir + "/" + spec.source.rsplit("/", 2)[-1][0:-1]
-    print('Source is ' + local_uri)
+      subprocess.call(['osc', 'mkpac', target_dir])
+    subprocess.call(['osc', 'up'], cwd = target_dir)
+    # For git source (should probably delete this):
+    # local_uri = target_dir + '/' + spec.source.rsplit("/", 2)[-1][0:-1]
+    # For .tar.gz files derived from ros-gbp source:
+    # local_uri = target_dir + '/' + "-".join(spec.source.rsplit("/", 2)[-2:])
+    print('Processing ' + target_dir + ' ...')
     urllib.request.urlretrieve(spec.source, local_uri)
-    p = target_dir + "/" + PACKAGE_PREFIX.format(spec.name)
+    p = target_dir + '/' + PACKAGE_PREFIX.format(spec.name)
     with open(p + ".spec", mode = "w") as rpmSpec:
       spec.render(rpmSpec)
     with open(p + "-rpmlintrc", mode = "w") as lintFile:
       lintFile.write("""setBadness('devel-file-in-non-devel-package', 0)
 setBadness('shlib-policy-name-error', 0)""")
+    subprocess.check_call(['osc', 'addremove'], cwd = target_dir)
+    with subprocess.Popen(["osc", "st"], stdout = subprocess.PIPE) as status:
+      if status == '':
+        continue
+    subprocess.check_call(
+      ['osc', 'ci', '-m', '"ros2spec automated check-in"'], cwd = target_dir)
+      
