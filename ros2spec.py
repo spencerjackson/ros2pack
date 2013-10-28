@@ -96,7 +96,7 @@ def RPMSpec_factory(packagePath, wsPath, override):
     str_out = re.sub('\n', '', wstool.stdout.readline())
     if "ros-gbp" in str_out:
       source = re.sub('\.git,', '/archive/', str_out) + '.tar.gz'
-      print("Derived source tarball URL: " + source)
+      print("ros-gbp package detected. URL: " + source)
     else:
       source = re.sub(',.*', '', str_out)
   def elementText(element):
@@ -167,14 +167,14 @@ mkdir src
 mv {name} src
 
 %build
-CMAKE_PREFIX_PATH=/usr catkin_make -DSETUPTOOLS_DEB_LAYOUT="OFF" -DCMAKE_INSTALL_PREFIX=/usr
+CMAKE_PREFIX_PATH=/usr DESTDIR=%{{?buildroot}} catkin_make -DCMAKE_INSTALL_PREFIX=/usr -DSETUPTOOLS_DEB_LAYOUT="OFF"
 
 %install
-catkin_make install DESTDIR=%{{?buildroot}}
-rm %{{?buildroot}}/usr/.catkin %{{?buildroot}}/usr/.rosinstall \
-   %{{?buildroot}}/usr/env.sh %{{?buildroot}}/usr/_setup_util.py \
-   %{{?buildroot}}/usr/setup*
-mkdir %{{?buildroot}}/usr/share/pkgconfig
+CMAKE_PREFIX_PATH=/usr DESTDIR=%{{?buildroot}} catkin_make install -DCMAKE_INSTALL_PREFIX=/usr
+#rm %{{?buildroot}}/usr/.catkin %{{?buildroot}}/usr/.rosinstall \
+#   %{{?buildroot}}/usr/env.sh %{{?buildroot}}/usr/_setup_util.py \
+#   %{{?buildroot}}/usr/setup*
+mkdir -p %{{?buildroot}}/usr/share/pkgconfig
 mv %{{?buildroot}}/usr/lib/pkgconfig/{name}.pc %{{?buildroot}}/usr/share/pkgconfig/
 rmdir %{{?buildroot}}/usr/lib/pkgconfig
 rosmanifestparser {name} build/install_manifest.txt %{{?buildroot}} {has_python}
@@ -232,7 +232,6 @@ if __name__ == '__main__':
       override = PackageOverride()
     if override.ignore:
       continue
-    print('\n')
     spec = RPMSpec_factory(srcdir + '/' + package, srcdir, override)
     target_dir = args.destination + '/' + PACKAGE_PREFIX.format(package)
     if not os.path.exists(target_dir):
@@ -241,9 +240,9 @@ if __name__ == '__main__':
     # For git source (should probably delete this):
     # local_uri = target_dir + '/' + spec.source.rsplit("/", 2)[-1][0:-1]
     # For .tar.gz files derived from ros-gbp source:
-    # local_uri = target_dir + '/' + "-".join(spec.source.rsplit("/", 2)[-2:])
+    local_uri = target_dir + '/' + spec.source.rsplit("/", 2)[-1]
     print('Processing ' + target_dir + ' ...')
-    urllib.request.urlretrieve(spec.source, local_uri)
+    # urllib.request.urlretrieve(spec.source, local_uri)
     p = target_dir + '/' + PACKAGE_PREFIX.format(spec.name)
     with open(p + ".spec", mode = "w") as rpmSpec:
       spec.render(rpmSpec)
