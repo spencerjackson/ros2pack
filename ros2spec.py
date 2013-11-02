@@ -122,7 +122,8 @@ def RPMSpec_factory(packagePath, wsPath, override):
 
 # Class to model an RPM spec
 class RPMSpec:
-  def __init__(self, name, version, source, url, description, summary, license, dependencies, has_python, is_metapackage):
+  def __init__(self, name, version, source, url, description, summary, license, 
+               dependencies, has_python, is_metapackage):
     self.name = name
     self.version = version
     self.source = source
@@ -133,6 +134,21 @@ class RPMSpec:
     self.dependencies = dependencies
     self.has_python = has_python
     self.is_metapackage = is_metapackage
+
+  def generate_service(self, stream):
+    
+    download_files_srv = """  <service name="download_files"/>"""
+    tar_scm_srv = """  <service name="tar_scm">
+    <param name="url">{source}</param>
+    <param name="revision">master</param>
+    <param name="scm">git</param> 
+  </service>
+""".format(source = self.source)
+
+    stream.write("""<services>
+{srv}
+</services>
+""".format(srv = (download_files_srv if "ros-gbp" in self.source else tar_scm_srv)))
 
   def render(self, stream):
     header_template = """%define __pkgconfig_path {{""}}
@@ -200,12 +216,6 @@ class PackageOverride:
     self.description = description
     self.ignore = ignore
 
-def generate_service(stream):
-  stream.write("""<services>
-  <service name="download_files"/>
-</services>
-""")
-
 def generate_override(element):
   summary = element.find('summary')
   if summary != None:
@@ -259,7 +269,7 @@ if __name__ == '__main__':
     print('Processing ' + target_dir + ' ...')
     # urllib.request.urlretrieve(spec.source, local_uri)
     with open(target_dir + '/_service', mode = "w") as srv_file:
-      generate_service(srv_file)
+      spec.generate_service(srv_file)
     pack_name = PACKAGE_PREFIX.format(spec.name)
     with open(target_dir + '/' + pack_name + ".spec", mode = "w") as rpmSpec:
       spec.render(rpmSpec)
