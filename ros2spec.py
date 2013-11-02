@@ -115,12 +115,14 @@ def RPMSpec_factory(packagePath, wsPath, override):
       provided = provided_result.strip()
       dependencies.mark(provided)
   has_python = os.path.isfile(packagePath + "/setup.py")
+  is_metapackage = root.find("export").find("metapackage") != None
+
   return RPMSpec(name, version, source, url, description, summary, 
-                 license, dependencies, has_python)
+                 license, dependencies, has_python, is_metapackage)
 
 # Class to model an RPM spec
 class RPMSpec:
-  def __init__(self, name, version, source, url, description, summary, license, dependencies, has_python):
+  def __init__(self, name, version, source, url, description, summary, license, dependencies, has_python, is_metapackage):
     self.name = name
     self.version = version
     self.source = source
@@ -130,6 +132,7 @@ class RPMSpec:
     self.license = license
     self.dependencies = dependencies
     self.has_python = has_python
+    self.is_metapackage = is_metapackage
 
   def render(self, stream):
     header_template = """%define __pkgconfig_path {{""}}
@@ -174,9 +177,7 @@ CMAKE_PREFIX_PATH=/usr DESTDIR=%{{?buildroot}} catkin_make install -DCMAKE_INSTA
 #rm %{{?buildroot}}/usr/.catkin %{{?buildroot}}/usr/.rosinstall \
 #   %{{?buildroot}}/usr/env.sh %{{?buildroot}}/usr/_setup_util.py \
 #   %{{?buildroot}}/usr/setup*
-mkdir -p %{{?buildroot}}/usr/share/pkgconfig
-mv %{{?buildroot}}/usr/lib/pkgconfig/{name}.pc %{{?buildroot}}/usr/share/pkgconfig/
-rmdir %{{?buildroot}}/usr/lib/pkgconfig
+{pkgconfig}
 rosmanifestparser {name} build/install_manifest.txt %{{?buildroot}} {has_python}
 
 %files -f ros_install_manifest
@@ -184,7 +185,13 @@ rosmanifestparser {name} build/install_manifest.txt %{{?buildroot}} {has_python}
 
 %changelog
 """
-    stream.write(body.format(name=self.name, has_python=self.has_python))
+    pkg_config_cmds = """mkdir -p %{{?buildroot}}/usr/share/pkgconfig
+mv %{{?buildroot}}/usr/lib/pkgconfig/{name}.pc %{{?buildroot}}/usr/share/pkgconfig/
+rmdir %{{?buildroot}}/usr/lib/pkgconfig
+"""
+
+    stream.write(body.format(name=self.name, has_python=self.has_python, 
+                pkgconfig = pkg_config_cmds if not self.is_metapackage else ''))
 
 # Allows overriding summary and description, and allows ignoring a package
 class PackageOverride:
