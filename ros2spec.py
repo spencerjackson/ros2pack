@@ -193,6 +193,12 @@ class PackageOverride:
     self.description = description
     self.ignore = ignore
 
+def generate_service(stream):
+  stream.write("""<services>
+  <service name="download_files"/>
+</services>
+""")
+
 def generate_override(element):
   summary = element.find('summary')
   if summary != None:
@@ -235,24 +241,27 @@ if __name__ == '__main__':
     spec = RPMSpec_factory(srcdir + '/' + package, srcdir, override)
     target_dir = args.destination + '/' + PACKAGE_PREFIX.format(package)
     if not os.path.exists(target_dir):
+      print ("Creating new directory ...")
       subprocess.call(['osc', 'mkpac', target_dir])
-    subprocess.call(['osc', 'up'], cwd = target_dir)
+    os.chdir(target_dir)
+    subprocess.call(['osc', 'up'])
     # For git source (should probably delete this):
     # local_uri = target_dir + '/' + spec.source.rsplit("/", 2)[-1][0:-1]
     # For .tar.gz files derived from ros-gbp source:
     local_uri = target_dir + '/' + spec.source.rsplit("/", 2)[-1]
     print('Processing ' + target_dir + ' ...')
     # urllib.request.urlretrieve(spec.source, local_uri)
-    p = target_dir + '/' + PACKAGE_PREFIX.format(spec.name)
-    with open(p + ".spec", mode = "w") as rpmSpec:
+    with open(target_dir + '/_service', mode = "w") as srv_file:
+      generate_service(srv_file)
+    pack_name = PACKAGE_PREFIX.format(spec.name)
+    with open(target_dir + '/' + pack_name + ".spec", mode = "w") as rpmSpec:
       spec.render(rpmSpec)
-    with open(p + "-rpmlintrc", mode = "w") as lintFile:
+    with open(target_dir + '/' + pack_name + "-rpmlintrc", mode = "w") as lintFile:
       lintFile.write("""setBadness('devel-file-in-non-devel-package', 0)
 setBadness('shlib-policy-name-error', 0)""")
-    subprocess.check_call(['osc', 'addremove'], cwd = target_dir)
+    subprocess.check_call(['osc', 'addremove'])
     with subprocess.Popen(["osc", "st"], stdout = subprocess.PIPE) as status:
       if status == '':
         continue
-    subprocess.check_call(
-      ['osc', 'ci', '-m', '"ros2spec automated check-in"'], cwd = target_dir)
+    subprocess.check_call(['osc', 'ci', '-m', '"ros2spec automated check-in"'])
       
