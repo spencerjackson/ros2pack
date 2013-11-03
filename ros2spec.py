@@ -115,7 +115,10 @@ def RPMSpec_factory(packagePath, wsPath, override):
       provided = provided_result.strip()
       dependencies.mark(provided)
   has_python = os.path.isfile(packagePath + "/setup.py")
-  is_metapackage = root.find("export").find("metapackage") != None
+  if root.find("export") == None:
+    is_metapackage = False
+  else:
+    is_metapackage = root.find("export").find("metapackage") != None
 
   return RPMSpec(name, version, source, url, description, summary, 
                  license, dependencies, has_python, is_metapackage)
