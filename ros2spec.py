@@ -237,6 +237,8 @@ if __name__ == '__main__':
                        help = 'process only the specifed packages')
   parser.add_argument('destination', type = str,
                       help = 'path to the spec root')
+  parser.add_argument('--resume-at', type = str, dest = 'pack_resume', nargs = '?',
+                      help = 'if the script failed previously, resume at the specified package')
   args = parser.parse_args()
 
   workspace_config = etree.parse(args.workspace + '/.ros2spec.xml').getroot()
@@ -251,7 +253,20 @@ if __name__ == '__main__':
     packages = args.packages
 
   # subprocess.call(['osc', 'up'], cwd = args.destination)
+
+  print("Listing packages on server ...")
+  with subprocess.Popen(
+    ["osc", "list", args.destination.split('/')[-1]], 
+    stdout = subprocess.PIPE, universal_newlines = True) as server_results:
+    remote_packages = [line.replace('\n', '') for line in server_results.stdout]
+
+  skip = args.pack_resume != None
   for package in packages:
+    if skip and package != args.pack_resume
+      continue
+    else:
+      skip = False
+
     try:
       override = overrides[package]
     except KeyError:
@@ -259,18 +274,28 @@ if __name__ == '__main__':
     if override.ignore:
       continue
     spec = RPMSpec_factory(srcdir + '/' + package, srcdir, override)
-    target_dir = args.destination + '/' + PACKAGE_PREFIX.format(package)
-    if not os.path.exists(target_dir):
-      print ("Creating new directory ...")
+    pack_formatted = PACKAGE_PREFIX.format(package)
+    target_dir = args.destination + '/' + pack_formatted
+    os.chdir(args.destination)
+
+    if pack_formatted not in remote_packages:
+      print("Package " + pack_formatted + " was not found on server.")
+      if (os.path.exists(target_dir)):
+        print("""The package was not found on the server, but the directory was found locally.
+Please resolve this manually before continuing.""")
+        exit(1)
+      print("Creating package " + pack_formatted + " ...")
       subprocess.call(['osc', 'mkpac', target_dir])
-    os.chdir(target_dir)
-    subprocess.call(['osc', 'up'])
-    # For git source (should probably delete this):
-    # local_uri = target_dir + '/' + spec.source.rsplit("/", 2)[-1][0:-1]
-    # For .tar.gz files derived from ros-gbp source:
+      os.chdir(target_dir)
+    else:
+      if not os.path.exists(target_dir):
+        print("Creating new directory for package ...")
+        os.makedir(target_dir)
+      print("Updating existing package ...")
+      os.chdir(target_dir)
+      subprocess.call(['osc', 'up'])
     local_uri = target_dir + '/' + spec.source.rsplit("/", 2)[-1]
     print('Processing ' + target_dir + ' ...')
-    # urllib.request.urlretrieve(spec.source, local_uri)
     with open(target_dir + '/_service', mode = "w") as srv_file:
       spec.generate_service(srv_file)
     pack_name = PACKAGE_PREFIX.format(spec.name)
