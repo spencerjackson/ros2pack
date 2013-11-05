@@ -207,7 +207,7 @@ rosmanifestparser {name} build/install_manifest.txt %{{?buildroot}} {has_python}
     pkg_config_cmds = """mkdir -p %{{?buildroot}}/usr/share/pkgconfig
 mv %{{?buildroot}}/usr/lib/pkgconfig/{name}.pc %{{?buildroot}}/usr/share/pkgconfig/
 rmdir %{{?buildroot}}/usr/lib/pkgconfig
-"""
+""".format(name = self.name)
 
     stream.write(body.format(name=self.name, has_python=self.has_python, 
                 pkgconfig = pkg_config_cmds if not self.is_metapackage else ''))
@@ -262,7 +262,7 @@ if __name__ == '__main__':
 
   skip = args.pack_resume != None
   for package in packages:
-    if skip and package != args.pack_resume
+    if skip and package != args.pack_resume:
       continue
     else:
       skip = False
@@ -289,11 +289,13 @@ Please resolve this manually before continuing.""")
       os.chdir(target_dir)
     else:
       if not os.path.exists(target_dir):
-        print("Creating new directory for package ...")
-        os.makedir(target_dir)
-      print("Updating existing package ...")
-      os.chdir(target_dir)
-      subprocess.call(['osc', 'up'])
+        print("Checking out package ...")
+        subprocess.call(['osc', 'co', pack_formatted])
+        os.chdir(target_dir)
+      else:
+        os.chdir(target_dir)
+        print("Updating existing package ...")
+        subprocess.call(['osc', 'up'])
     local_uri = target_dir + '/' + spec.source.rsplit("/", 2)[-1]
     print('Processing ' + target_dir + ' ...')
     with open(target_dir + '/_service', mode = "w") as srv_file:
