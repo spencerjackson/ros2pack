@@ -70,7 +70,7 @@ def extract_all_text(element):
     mod_lst.append(text)
   return re.sub('\s+', ' ', "".join(mod_lst).strip())
 
-def RPMSpec_factory(packagePath, wsPath, override):
+def RPMSpec_factory(packagePath, wsPath, override, distro):
   tree = etree.parse(packagePath+"/package.xml")
   root = tree.getroot()
   name = root.find('name').text
@@ -121,12 +121,12 @@ def RPMSpec_factory(packagePath, wsPath, override):
     is_metapackage = root.find("export").find("metapackage") != None
 
   return RPMSpec(name, version, source, url, description, summary, 
-                 license, dependencies, has_python, is_metapackage)
+                 license, dependencies, has_python, is_metapackage, distro)
 
 # Class to model an RPM spec
 class RPMSpec:
   def __init__(self, name, version, source, url, description, summary, license, 
-               dependencies, has_python, is_metapackage):
+               dependencies, has_python, is_metapackage, distro):
     self.name = name
     self.version = version
     self.source = source
@@ -137,6 +137,7 @@ class RPMSpec:
     self.dependencies = dependencies
     self.has_python = has_python
     self.is_metapackage = is_metapackage
+    self.distro = distro
 
   def generate_service(self, stream):
     
@@ -182,6 +183,7 @@ BuildRequires:  python-rosmanifestparser
     stream.write("\n%description\n{0}\n".format(self.description))
 
     body = """
+%define catkin_make {install_space}/bin/catkin_make
 %prep
 %setup -q -c -n workspace
 mv * {name}
@@ -189,13 +191,15 @@ mkdir src
 mv {name} src
 
 %build
-CMAKE_PREFIX_PATH=/usr DESTDIR=%{{?buildroot}} catkin_make -DCMAKE_INSTALL_PREFIX=/usr -DSETUPTOOLS_DEB_LAYOUT="OFF"
+source {install_space}/setup.bash
+DESTDIR=%{{?buildroot}} %{{catkin_make}} -DCMAKE_INSTALL_PREFIX={install_space} -DSETUPTOOLS_DEB_LAYOUT="OFF"
 
 %install
-CMAKE_PREFIX_PATH=/usr DESTDIR=%{{?buildroot}} catkin_make install -DCMAKE_INSTALL_PREFIX=/usr
-#rm %{{?buildroot}}/usr/.catkin %{{?buildroot}}/usr/.rosinstall \
-#   %{{?buildroot}}/usr/env.sh %{{?buildroot}}/usr/_setup_util.py \
-#   %{{?buildroot}}/usr/setup*
+source {install_space}/setup.bash
+DESTDIR=%{{?buildroot}} %{{catkin_make}} install -DCMAKE_INSTALL_PREFIX={install_space}
+#rm %{{?buildroot}}{install_space}/.catkin %{{?buildroot}}{install_space}/.rosinstall \
+#   %{{?buildroot}}{install_space}/env.sh %{{?buildroot}}{install_space}/_setup_util.py \
+#   %{{?buildroot}}{install_space}/setup*
 {pkgconfig}
 rosmanifestparser {name} build/install_manifest.txt %{{?buildroot}} {has_python}
 
@@ -204,13 +208,15 @@ rosmanifestparser {name} build/install_manifest.txt %{{?buildroot}} {has_python}
 
 %changelog
 """
-    pkg_config_cmds = """mkdir -p %{{?buildroot}}/usr/share/pkgconfig
-mv %{{?buildroot}}/usr/lib/pkgconfig/{name}.pc %{{?buildroot}}/usr/share/pkgconfig/
-rmdir %{{?buildroot}}/usr/lib/pkgconfig
-""".format(name = self.name)
+    inst_dir = "/opt/ros/" + self.distro
+    pkg_config_cmds = """mkdir -p %{{?buildroot}}{install_space}/share/pkgconfig
+mv %{{?buildroot}}{install_space}/lib/pkgconfig/{name}.pc %{{?buildroot}}{install_space}/share/pkgconfig/
+rmdir %{{?buildroot}}{install_space}/lib/pkgconfig
+""".format(install_space=inst_dir, name=self.name)
 
-    stream.write(body.format(name=self.name, has_python=self.has_python, 
-                pkgconfig = pkg_config_cmds if not self.is_metapackage else ''))
+    stream.write(body.format(
+      pkgconfig=pkg_config_cmds if not self.is_metapackage else '',
+      name=self.name, has_python=self.has_python, install_space=inst_dir))
 
 # Allows overriding summary and description, and allows ignoring a package
 class PackageOverride:
@@ -233,12 +239,19 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser(description = "Generate RPM spec files from ROS packages")
   parser.add_argument('workspace', type = str,
                       help = 'path to the root of the workspace')
-  parser.add_argument('--packages', type = str, dest = 'packages', nargs = '+',
-                       help = 'process only the specifed packages')
   parser.add_argument('destination', type = str,
                       help = 'path to the spec root')
+  parser.add_argument('--packages', type = str, dest = 'packages', nargs = '+',
+                       help = 'process only the specifed packages')
+  parser.add_argument('--local', dest = 'remote', action = 'store_false',
+                      help = 'don\'t upload results to server')
+  parser.add_argument('--remote', dest = 'remote', action = 'store_true',
+                      help = 'upload results to server; set by default')
   parser.add_argument('--resume-at', type = str, dest = 'pack_resume', nargs = '?',
                       help = 'if the script failed previously, resume at the specified package')
+  parser.add_argument('--distro', type = str, dest = 'distro', nargs = '?',
+                      help = 'the ROS distribution to install (default is hydro)')
+  parser.set_defaults(remote = True, distro = 'hydro')
   args = parser.parse_args()
 
   workspace_config = etree.parse(args.workspace + '/.ros2spec.xml').getroot()
@@ -252,8 +265,6 @@ if __name__ == '__main__':
   else:
     packages = args.packages
 
-  # subprocess.call(['osc', 'up'], cwd = args.destination)
-
   print("Listing packages on server ...")
   with subprocess.Popen(
     ["osc", "list", args.destination.split('/')[-1]], 
@@ -261,8 +272,9 @@ if __name__ == '__main__':
     remote_packages = [line.replace('\n', '') for line in server_results.stdout]
 
   skip = args.pack_resume != None
+
   for package in packages:
-    if skip and package != args.pack_resume:
+    if skip and (package != args.pack_resume):
       continue
     else:
       skip = False
@@ -273,7 +285,7 @@ if __name__ == '__main__':
       override = PackageOverride()
     if override.ignore:
       continue
-    spec = RPMSpec_factory(srcdir + '/' + package, srcdir, override)
+    spec = RPMSpec_factory(srcdir + '/' + package, srcdir, override, args.distro)
     pack_formatted = PACKAGE_PREFIX.format(package)
     target_dir = args.destination + '/' + pack_formatted
     os.chdir(args.destination)
@@ -296,8 +308,8 @@ Please resolve this manually before continuing.""")
         os.chdir(target_dir)
         print("Updating existing package ...")
         subprocess.call(['osc', 'up'])
-    local_uri = target_dir + '/' + spec.source.rsplit("/", 2)[-1]
-    print('Processing ' + target_dir + ' ...')
+
+    print('Generating files in ' + target_dir + ' ...')
     with open(target_dir + '/_service', mode = "w") as srv_file:
       spec.generate_service(srv_file)
     pack_name = PACKAGE_PREFIX.format(spec.name)
@@ -306,9 +318,13 @@ Please resolve this manually before continuing.""")
     with open(target_dir + '/' + pack_name + "-rpmlintrc", mode = "w") as lintFile:
       lintFile.write("""setBadness('devel-file-in-non-devel-package', 0)
 setBadness('shlib-policy-name-error', 0)""")
+
     subprocess.check_call(['osc', 'addremove'])
     with subprocess.Popen(["osc", "st"], stdout = subprocess.PIPE) as status:
       if status == '':
+        print("No changes to commit.")
         continue
-    subprocess.check_call(['osc', 'ci', '-m', '"ros2spec automated check-in"'])
+    if (args.remote):
+      print("Performing check-in...")
+      subprocess.check_call(['osc', 'ci', '-m', '"ros2spec automated check-in"'])
       
