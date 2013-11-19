@@ -242,7 +242,9 @@ if __name__ == '__main__':
   parser.add_argument('destination', type = str,
                       help = 'path to the spec root')
   parser.add_argument('--packages', type = str, dest = 'packages', nargs = '+',
-                       help = 'process only the specifed packages')
+                      help = 'process only the specifed packages')
+  parser.add_argument('--skip', type = str, dest = 'skipped', nargs = '+',
+                      help = 'skip the specified packages')
   parser.add_argument('--local', dest = 'remote', action = 'store_false',
                       help = 'don\'t upload results to server')
   parser.add_argument('--remote', dest = 'remote', action = 'store_true',
@@ -251,7 +253,7 @@ if __name__ == '__main__':
                       help = 'if the script failed previously, resume at the specified package')
   parser.add_argument('--distro', type = str, dest = 'distro', nargs = '?',
                       help = 'the ROS distribution to install (default is hydro)')
-  parser.set_defaults(remote = True, distro = 'hydro')
+  parser.set_defaults(remote = True, distro = 'hydro', skipped = [])
   args = parser.parse_args()
 
   workspace_config = etree.parse(args.workspace + '/.ros2spec.xml').getroot()
@@ -278,6 +280,9 @@ if __name__ == '__main__':
       continue
     else:
       skip = False
+
+    if package in skipped:
+      continue
 
     try:
       override = overrides[package]
