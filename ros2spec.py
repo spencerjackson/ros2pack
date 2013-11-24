@@ -6,9 +6,6 @@ import xml.etree.ElementTree as etree
 import argparse
 import urllib.request
 
-# Remove me!
-import pdb
-
 PACKAGE_PREFIX = "ros-{0}"
 
 # Encapsulates a list of dependencies
@@ -176,14 +173,16 @@ BuildRequires:  python-rosmanifestparser
                                         summary = self.summary, url = self.url,
                                         source = self.source))
 
-    for build_dependency in self.dependencies.build_packages():
+    for build_dependency in sorted(map(str, self.dependencies.build_packages())):
       stream.write("BuildRequires:	{0}\n".format(build_dependency))
-    for run_dependency in self.dependencies.run_packages():
+    for run_dependency in sorted(map(str, self.dependencies.run_packages())):
       stream.write("Requires:	      {0}\n".format(run_dependency))
     stream.write("\n%description\n{0}\n".format(self.description))
 
     body = """
-%define catkin_make {install_space}/bin/catkin_make
+%define install_dir {install_space}
+%define catkin_make %{{install_dir}}/bin/catkin_make
+
 %prep
 %setup -q -c -n workspace
 mv * {name}
@@ -191,15 +190,20 @@ mkdir src
 mv {name} src
 
 %build
-source {install_space}/setup.bash
-DESTDIR=%{{?buildroot}} %{{catkin_make}} -DCMAKE_INSTALL_PREFIX={install_space} -DSETUPTOOLS_DEB_LAYOUT="OFF"
+source %{{install_dir}}/setup.bash
+DESTDIR=%{{?buildroot}} %{{catkin_make}} -DCMAKE_INSTALL_PREFIX=%{{install_dir}} -DSETUPTOOLS_DEB_LAYOUT="OFF"
 
 %install
-source {install_space}/setup.bash
-DESTDIR=%{{?buildroot}} %{{catkin_make}} install -DCMAKE_INSTALL_PREFIX={install_space}
-#rm %{{?buildroot}}{install_space}/.catkin %{{?buildroot}}{install_space}/.rosinstall \
-#   %{{?buildroot}}{install_space}/env.sh %{{?buildroot}}{install_space}/_setup_util.py \
-#   %{{?buildroot}}{install_space}/setup*
+source %{{install_dir}}/setup.bash
+DESTDIR=%{{?buildroot}} %{{catkin_make}} install -DCMAKE_INSTALL_PREFIX=%{{install_dir}}
+if [ -f %{{buildroot}}/opt/ros/hydro/.catkin ];
+then
+  rm %{{?buildroot}}%{{install_dir}}/.catkin \
+     %{{?buildroot}}%{{install_dir}}/.rosinstall \
+     %{{?buildroot}}%{{install_dir}}/env.sh \
+     %{{?buildroot}}%{{install_dir}}/_setup_util.py \
+     %{{?buildroot}}%{{install_dir}}/setup*
+fi
 {pkgconfig}
 rosmanifestparser {name} build/install_manifest.txt %{{?buildroot}} {has_python}
 
@@ -208,15 +212,15 @@ rosmanifestparser {name} build/install_manifest.txt %{{?buildroot}} {has_python}
 
 %changelog
 """
-    inst_dir = "/opt/ros/" + self.distro
-    pkg_config_cmds = """mkdir -p %{{?buildroot}}{install_space}/share/pkgconfig
-mv %{{?buildroot}}{install_space}/lib/pkgconfig/{name}.pc %{{?buildroot}}{install_space}/share/pkgconfig/
-rmdir %{{?buildroot}}{install_space}/lib/pkgconfig
-""".format(install_space=inst_dir, name=self.name)
+    pkg_config_cmds = """mkdir -p %{{?buildroot}}%{{install_dir}}/share/pkgconfig
+mv %{{?buildroot}}%{{install_dir}}/lib/pkgconfig/{name}.pc %{{?buildroot}}%{{install_dir}}/share/pkgconfig/
+rmdir %{{?buildroot}}%{{install_dir}}/lib/pkgconfig
+""".format(name=self.name)
 
     stream.write(body.format(
-      pkgconfig=pkg_config_cmds if not self.is_metapackage else '',
-      name=self.name, has_python=self.has_python, install_space=inst_dir))
+      pkgconfig = pkg_config_cmds if not self.is_metapackage else '',
+      name = self.name, has_python = self.has_python, 
+      install_space = "/opt/ros/" + self.distro))
 
 # Allows overriding summary and description, and allows ignoring a package
 class PackageOverride:
@@ -281,7 +285,7 @@ if __name__ == '__main__':
     else:
       skip = False
 
-    if package in skipped:
+    if package in args.skipped:
       continue
 
     try:
