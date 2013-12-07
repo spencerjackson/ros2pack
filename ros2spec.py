@@ -6,6 +6,7 @@ import xml.etree.ElementTree as etree
 import argparse
 import urllib.request
 
+import pdb
 # Encapsulates a list of dependencies
 class DependencyStore:
   class Dependency:
@@ -26,7 +27,7 @@ class DependencyStore:
       self._providedLocal = value
 
     def __str__(self):
-      if self._providedLocal:
+      if not subprocess.call(['rospack','find',self._name]):
         return self._name
       with subprocess.Popen(
         ['rosdep', 'resolve', self._name], 
@@ -83,7 +84,7 @@ def RPMSpec_factory(packagePath, wsPath, override, distro):
     summary = override.summary
   else:
     summary = description.split(".", 1)[0]
-
+  
   license = root.find('license').text
   with subprocess.Popen(
     ['wstool', 'info', '-t', wsPath, '--only', 'cur_uri,version', name], 
@@ -95,6 +96,7 @@ def RPMSpec_factory(packagePath, wsPath, override, distro):
       print("ros-gbp package detected. URL: " + source)
     else:
       source = re.sub(',.*', '', str_out)
+
   def elementText(element):
     return element.text
   dependencies = DependencyStore(list(map(elementText,
@@ -283,7 +285,6 @@ if __name__ == '__main__':
     ["osc", "list", args.destination.split('/')[-1]], 
     stdout = subprocess.PIPE, universal_newlines = True) as server_results:
     remote_packages = [line.replace('\n', '') for line in server_results.stdout]
-
   skip = args.pack_resume != None
 
   for package in packages:
@@ -304,7 +305,6 @@ if __name__ == '__main__':
     spec = RPMSpec_factory(srcdir + '/' + package, srcdir, override, args.distro)
     target_dir = args.destination + '/' + package
     os.chdir(args.destination)
-
     if package not in remote_packages:
       print("Package " + package + " was not found on server.")
       if (os.path.exists(target_dir)):
