@@ -6,8 +6,6 @@ import xml.etree.ElementTree as etree
 import argparse
 import urllib.request
 
-PACKAGE_PREFIX = "ros-{0}"
-
 # Encapsulates a list of dependencies
 class DependencyStore:
   class Dependency:
@@ -29,7 +27,7 @@ class DependencyStore:
 
     def __str__(self):
       if self._providedLocal:
-        return PACKAGE_PREFIX.format(self._name)
+        return self._name
       with subprocess.Popen(
         ['rosdep', 'resolve', self._name], 
         stdout=subprocess.PIPE, universal_newlines=True
@@ -44,7 +42,8 @@ class DependencyStore:
     self._run = {p:DependencyStore.Dependency(p) for p in run_depends}
 
   def __str__(self):
-    return (self._build + self._run).__str__()
+    return "Build: {b}\nRun: {r}".format(b = self._build.__str__(), 
+                                         r = self._run.__str__())
 
   def mark(self, package_name):
     if package_name in self._build:
@@ -154,29 +153,29 @@ class RPMSpec:
   def render(self, stream):
     header_template = """%define __pkgconfig_path {{""}}
 
-Name:		        {pkg_name}
-Version:	      {version}
-Release:	      0
-License:	      {license}
-Summary:	      {summary}
-Url:	          {url}
-Group:	        Productivity/Scientific/Other
-Source0:	      {source}
-Source1:	      {pkg_name}-rpmlintrc
+Name:           {pkg_name}
+Version:        {version}
+Release:        0
+License:        {license}
+Summary:        {summary}
+Url:            {url}
+Group:          Productivity/Scientific/Other
+Source0:        {source}
+Source1:        {pkg_name}-rpmlintrc
 
 BuildRequires:  python-devel
 BuildRequires:  gcc-c++
 BuildRequires:  python-rosmanifestparser
 """
-    stream.write(header_template.format(pkg_name = PACKAGE_PREFIX.format(self.name),
+    stream.write(header_template.format(pkg_name = self.name,
                                         version = self.version, license = self.license,
                                         summary = self.summary, url = self.url,
                                         source = self.source))
 
     for build_dependency in sorted(map(str, self.dependencies.build_packages())):
-      stream.write("BuildRequires:	{0}\n".format(build_dependency))
+      stream.write("BuildRequires:  {0}\n".format(build_dependency))
     for run_dependency in sorted(map(str, self.dependencies.run_packages())):
-      stream.write("Requires:	      {0}\n".format(run_dependency))
+      stream.write("Requires:       {0}\n".format(run_dependency))
     stream.write("\n%description\n{0}\n".format(self.description))
 
     body = """
@@ -295,23 +294,22 @@ if __name__ == '__main__':
     if override.ignore:
       continue
     spec = RPMSpec_factory(srcdir + '/' + package, srcdir, override, args.distro)
-    pack_formatted = PACKAGE_PREFIX.format(package)
-    target_dir = args.destination + '/' + pack_formatted
+    target_dir = args.destination + '/' + package
     os.chdir(args.destination)
 
-    if pack_formatted not in remote_packages:
-      print("Package " + pack_formatted + " was not found on server.")
+    if package not in remote_packages:
+      print("Package " + package + " was not found on server.")
       if (os.path.exists(target_dir)):
         print("""The package was not found on the server, but the directory was found locally.
 Please resolve this manually before continuing.""")
         exit(1)
-      print("Creating package " + pack_formatted + " ...")
+      print("Creating package " + package + " ...")
       subprocess.call(['osc', 'mkpac', target_dir])
       os.chdir(target_dir)
     else:
       if not os.path.exists(target_dir):
         print("Checking out package ...")
-        subprocess.call(['osc', 'co', pack_formatted])
+        subprocess.call(['osc', 'co', package])
         os.chdir(target_dir)
       else:
         os.chdir(target_dir)
@@ -321,10 +319,9 @@ Please resolve this manually before continuing.""")
     print('Generating files in ' + target_dir + ' ...')
     with open(target_dir + '/_service', mode = "w") as srv_file:
       spec.generate_service(srv_file)
-    pack_name = PACKAGE_PREFIX.format(spec.name)
-    with open(target_dir + '/' + pack_name + ".spec", mode = "w") as rpmSpec:
+    with open(target_dir + '/' + spec.name + ".spec", mode = "w") as rpmSpec:
       spec.render(rpmSpec)
-    with open(target_dir + '/' + pack_name + "-rpmlintrc", mode = "w") as lintFile:
+    with open(target_dir + '/' + spec.name + "-rpmlintrc", mode = "w") as lintFile:
       lintFile.write("""setBadness('devel-file-in-non-devel-package', 0)
 setBadness('shlib-policy-name-error', 0)""")
 

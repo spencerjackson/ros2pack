@@ -1,0 +1,107 @@
+<ros2spec>
+
+<package name="ros_comm">
+  <summary>ROS communications-related packages</summary>
+</package>
+
+<package name="catkin">
+  <ignore/>
+</package>
+
+<package name="cpp_common">
+  <summary>Contains C++ code used in multiple ROS packages</summary>
+</package>
+
+<package name="genmsg">
+  <summary>Library for generating ROS message and service structures</summary>
+</package>
+
+<package name="message_filters">
+  <summary>A set of filters which take messages and conditionally output them</summary>
+</package>
+
+<package name="message_generation">
+  <summary>Models the build-time dependencies for language binding generators</summary>
+  <description>Package modeling the build-time dependencies for generating language bindings of messages</description>
+</package>
+
+<package name="rosbag">
+  <patch name="ros-rosbag-fix-Boost.patch"/>
+</package>
+
+<package name="rosboost_cfg">
+  <summary>Scripts to determine Boost's flags</summary>
+</package>
+
+<package name="roscpp_serialization">
+  <summary>Contains ROS serialization code</summary>
+</package>
+
+<package name="roscreate">
+  <summary>A tool for creating ROS filesystem resources</summary>
+</package>
+
+<package name="rosgraph">
+  <summary>A command-line tool which informs about the ROS Computation Graph</summary>
+</package>
+
+<package name="roslaunch">
+  <summary>A took for launching ROS nodes</summary>
+</package>
+
+<package name="rosmake">
+  <summary>A dependency aware build tool for ROS</summary>
+</package>
+
+<package name="rosnode">
+  <summary>A tool for debugging ROS nodes</summary>
+</package>
+
+<package name="rosparam">
+  <summary>Gets and sets ROS parameters</summary>
+</package>
+
+<package name="rosservice">
+  <summary>A tool for listing and querying ROS Services</summary>
+</package>
+
+<package name="rostest">
+  <summary>An integration test suite based on roslaunch</summary>
+</package>
+
+<package name="rostopic">
+  <summary>A tool for manipulating ROS topics</summary>
+</package>
+
+<package name="std_msgs">
+  <summary>Standard ROS message types</summary>
+</package>
+
+<package name="topic_tools">
+  <summary>High level tools for manipulating ROS topics</summary>
+</package>
+
+<package name="diagnostic_msgs">
+  <summary>Messages used in ROS diagnostic and monitoring systems</summary>
+</package>
+
+<package name="geometry_msgs">
+  <summary>Provides messages for common geometric primitives</summary>
+</package>
+
+<package name="nav_msgs">
+  <summary>Messages used to interact with the navigation stack</summary>
+</package>
+
+<package name="sensor_msgs">
+  <summary>Messages for commonly used sensors</summary>
+</package>
+
+<package name="rosserial_python">
+  <patch name="rosserial_python-0.4.4-revertNameOfNode.patch" />
+  <patch name="rosserial_python-0.4.4-fixPrivateParameters.patch" />
+  <patch name="rosserial_python-0.4.4-fix35.patch" />
+  <patch name="rosserial_python-0.4.4-allowServicesToHaveEmptyRequests.patch" />
+</package>
+
+</ros2spec>
