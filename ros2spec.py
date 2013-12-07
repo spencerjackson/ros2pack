@@ -140,10 +140,11 @@ class RPMSpec:
     download_files_srv = """  <service name="download_files"/>"""
     tar_scm_srv = """  <service name="tar_scm">
     <param name="url">{source}</param>
+    <param name="version">{version}</param>
     <param name="revision">master</param>
     <param name="scm">git</param> 
   </service>
-""".format(source = self.source)
+""".format(source = self.source, version = self.version)
 
     stream.write("""<services>
 {srv}
@@ -167,10 +168,17 @@ BuildRequires:  python-devel
 BuildRequires:  gcc-c++
 BuildRequires:  python-rosmanifestparser
 """
+
+    # correction for tar_scm
+    if re.search("(\.git)$", self.source):
+      src = self.name + '-' + self.version
+    else:
+      src = self.source
+
     stream.write(header_template.format(pkg_name = self.name,
                                         version = self.version, license = self.license,
                                         summary = self.summary, url = self.url,
-                                        source = self.source))
+                                        source = src))
 
     for build_dependency in sorted(map(str, self.dependencies.build_packages())):
       stream.write("BuildRequires:  {0}\n".format(build_dependency))
