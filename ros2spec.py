@@ -9,49 +9,52 @@ import urllib.request
 import pdb
 # Encapsulates a list of dependencies
 class DependencyStore:
+
+  _cache = {}
+
   class Dependency:
     def __init__(self, name):
       self._name = name
-      self._providedLocal = False
-
-    @property
-    def name(self):
-      return self.name
-
-    @property
-    def providedLocal(self):
-      return self._providedLocal
-
-    @providedLocal.setter
-    def providedLocal(self, value):
-      self._providedLocal = value
+      self.resolve()
 
     def __str__(self):
-      if not subprocess.call(['rospack','find',self._name]):
-        return self._name
+      return self._resolved_name
+
+    def resolve(self):
+      if not subprocess.call(
+        ['rospack','find',self._name], stdout = subprocess.DEVNULL, 
+        stderr = subprocess.DEVNULL
+      ):
+        self._resolved_name = self._name
+        return
+
       with subprocess.Popen(
-        ['rosdep', 'resolve', self._name], 
-        stdout=subprocess.PIPE, universal_newlines=True
+        ['rosdep', 'resolve', self._name], stdout = subprocess.PIPE, 
+        stderr = subprocess.DEVNULL, universal_newlines=True
       ) as rosdep_stream:
         rosdep_result = rosdep_stream.stdout.readlines()
         if len(rosdep_result) == 2:
-          return rosdep_result[1]
-      return self._name
+          self._resolved_name = rosdep_result[1]
+        else:
+          print(
+"""The dependency {name} could not be found by either both rospack or rosdep.
+Maybe you forgot to source the appropriate setup.bash, or there is no rosdep
+binding for {name} for this OS?""".format(self._name))
+          exit(1)
+
+  def get_dependency(name):
+    if name not in DependencyStore._cache:
+      DependencyStore._cache[name] = DependencyStore.Dependency(name) 
+    return DependencyStore._cache[name]
 
   def __init__(self, buildtool_depends, build_depends, run_depends):
-    self._build = {p:DependencyStore.Dependency(p) for p in build_depends + buildtool_depends}
-    self._run = {p:DependencyStore.Dependency(p) for p in run_depends}
+    self._build = {p:DependencyStore.get_dependency(p) for p in build_depends + buildtool_depends}
+    self._run = {p:DependencyStore.get_dependency(p) for p in run_depends}
 
   def __str__(self):
     return "Build: {b}\nRun: {r}".format(b = self._build.__str__(), 
                                          r = self._run.__str__())
-
-  def mark(self, package_name):
-    if package_name in self._build:
-      self._build[package_name].providedLocal = True
-    if package_name in self._run:
-      self._run[package_name].providedLocal = True
-
+  
   def build_packages(self):
     return self._build.values()
 
@@ -67,62 +70,57 @@ def extract_all_text(element):
     mod_lst.append(text)
   return re.sub('\s+', ' ', "".join(mod_lst).strip())
 
-def RPMSpec_factory(packagePath, wsPath, override, distro):
-  tree = etree.parse(packagePath+"/package.xml")
-  root = tree.getroot()
-  name = root.find('name').text
-  version = root.find('version').text
-  url = root.find('url').text
-
-  if override.description != None:
-    description = override.description
-  else:
-    description = extract_all_text(root.find('description'))
-    description = description[0].upper() + description[1:]
-  
-  if override.summary != None:
-    summary = override.summary
-  else:
-    summary = description.split(".", 1)[0]
-  
-  license = root.find('license').text
-  with subprocess.Popen(
-    ['wstool', 'info', '-t', wsPath, '--only', 'cur_uri,version', name], 
-    stdout = subprocess.PIPE, universal_newlines = True
-  ) as wstool:
-    str_out = re.sub('\n', '', wstool.stdout.readline())
-    if "ros-gbp" in str_out:
-      source = re.sub('\.git,', '/archive/', str_out) + '.tar.gz'
-      print("ros-gbp package detected. URL: " + source)
-    else:
-      source = re.sub(',.*', '', str_out)
-
-  def elementText(element):
-    return element.text
-  dependencies = DependencyStore(list(map(elementText,
-                                          root.findall('buildtool_depend'))),
-                                 list(map(elementText,
-                                          root.findall('build_depend'))),
-                                 list(map(elementText,
-                                          root.findall('run_depend'))))
-  with subprocess.Popen(
-    ["wstool", "info", "-t", wsPath, "--only", "localname"], 
-    stdout = subprocess.PIPE, universal_newlines = True
-  ) as provided_results:
-    for provided_result in provided_results.stdout:
-      provided = provided_result.strip()
-      dependencies.mark(provided)
-  has_python = os.path.isfile(packagePath + "/setup.py")
-  if root.find("export") == None:
-    is_metapackage = False
-  else:
-    is_metapackage = root.find("export").find("metapackage") != None
-
-  return RPMSpec(name, version, source, url, description, summary, 
-                 license, dependencies, has_python, is_metapackage, distro)
-
-# Class to model an RPM spec
 class RPMSpec:
+
+  def factory(packagePath, wsPath, override, distro):
+    tree = etree.parse(packagePath+"/package.xml")
+    root = tree.getroot()
+    name = root.find('name').text
+    version = root.find('version').text
+    url = root.find('url').text
+
+    if override.description != None:
+      description = override.description
+    else:
+      description = extract_all_text(root.find('description'))
+      description = description[0].upper() + description[1:]
+    
+    if override.summary != None:
+      summary = override.summary
+    else:
+      summary = description.split(".", 1)[0]
+    
+    license = root.find('license').text
+    with subprocess.Popen(
+      ['wstool', 'info', '-t', wsPath, '--only', 'cur_uri,version', name], 
+      stdout = subprocess.PIPE, universal_newlines = True
+    ) as wstool:
+      str_out = re.sub('\n', '', wstool.stdout.readline())
+      if "ros-gbp" in str_out:
+        source = re.sub('\.git,', '/archive/', str_out) + '.tar.gz'
+        print("ros-gbp package detected. URL: " + source)
+      else:
+        source = re.sub(',.*', '', str_out)
+
+    def elementText(element):
+      return element.text
+
+    dependencies = DependencyStore(
+      list(map(elementText, root.findall('buildtool_depend'))),
+      list(map(elementText, root.findall('build_depend'))),
+      list(map(elementText, root.findall('run_depend')))
+    )
+
+    has_python = os.path.isfile(packagePath + "/setup.py")
+
+    if root.find("export") == None:
+      is_metapackage = False
+    else:
+      is_metapackage = root.find("export").find("metapackage") != None
+
+    return RPMSpec(name, version, source, url, description, summary, 
+                   license, dependencies, has_python, is_metapackage, distro)
+
   def __init__(self, name, version, source, url, description, summary, license, 
                dependencies, has_python, is_metapackage, distro):
     self.name = name
@@ -302,7 +300,7 @@ if __name__ == '__main__':
       override = PackageOverride()
     if override.ignore:
       continue
-    spec = RPMSpec_factory(srcdir + '/' + package, srcdir, override, args.distro)
+    spec = RPMSpec.factory(srcdir + '/' + package, srcdir, override, args.distro)
     target_dir = args.destination + '/' + package
     os.chdir(args.destination)
     if package not in remote_packages:
