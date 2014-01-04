@@ -41,7 +41,7 @@ class DependencyStore:
           print(
 """The dependency {name} could not be found by either both rospack or rosdep.
 Maybe you forgot to source the appropriate setup.bash, or there is no rosdep
-binding for {name} for this OS?""".format(self._name))
+binding for {name} for this OS?""".format(name=self._name))
           exit(1)
 
   def get_dependency(name):
@@ -129,7 +129,7 @@ class RPMSpec:
     self.version = version
     self.source = source
     self.url = url
-    self.patches = patches
+    #self.patches = patches
     self.description = description
     self.summary = summary
     self.license = license
@@ -198,9 +198,9 @@ BuildRequires:  python-rosmanifestparser
 %setup -q -c -n workspace
 mv * {name}
 """
-    patch_number = 0
-    for patch in self.patches:
-      body += "%patch{0} -p0\n".format(patch_number)
+    #patch_number = 0
+    #for patch in self.patches:
+    #  body += "%patch{0} -p0\n".format(patch_number)
     body += """mkdir src
 mv {name} src
 %build
