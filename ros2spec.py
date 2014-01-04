@@ -166,6 +166,7 @@ Url:            {url}
 Group:          Productivity/Scientific/Other
 Source0:        {source}
 Source1:        {pkg_name}-rpmlintrc
+"""
 
     header_template += """BuildRequires:  python-devel
 BuildRequires:  gcc-c++
