@@ -31,7 +31,7 @@ class DependencyStore:
         return
 
       with subprocess.Popen(
-        ['rosdep', 'resolve', self._name], stdout = subprocess.PIPE, 
+        ['rosdep', '--os=opensuse:13.1', 'resolve', self._name], stdout = subprocess.PIPE, 
         stderr = subprocess.DEVNULL, universal_newlines=True
       ) as rosdep_stream:
         rosdep_result = rosdep_stream.stdout.readlines()
