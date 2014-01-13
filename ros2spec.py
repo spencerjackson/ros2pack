@@ -50,7 +50,7 @@ binding for {name} for this OS?""".format(name=self._name))
     return DependencyStore._cache[name]
 
   def __init__(self, buildtool_depends, build_depends, run_depends):
-    self._build = {p:DependencyStore.get_dependency(p) for p in build_depends + buildtool_depends}
+    self._build = {p:DependencyStore.get_dependency(p) for p in build_depends + buildtool_depends + ['catkin', 'gtest']}
     self._run = {p:DependencyStore.get_dependency(p) for p in run_depends}
 
   def __str__(self):
