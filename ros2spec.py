@@ -192,7 +192,7 @@ BuildRequires:  python-rosmanifestparser
 
     body = """
 %define install_dir {install_space}
-%define catkin_make %{{install_dir}}/bin/catkin_make
+%define catkin_make %{{install_dir}}/bin/catkin_make_isolated
 
 %prep
 %setup -q -c -n workspace
@@ -209,7 +209,7 @@ DESTDIR=%{{?buildroot}} %{{catkin_make}} -DCMAKE_INSTALL_PREFIX=%{{install_dir}}
 
 %install
 source %{{install_dir}}/setup.bash
-DESTDIR=%{{?buildroot}} %{{catkin_make}} install -DCMAKE_INSTALL_PREFIX=%{{install_dir}}
+DESTDIR=%{{?buildroot}} %{{catkin_make}} --install -DCMAKE_INSTALL_PREFIX=%{{install_dir}}
 if [ -f %{{buildroot}}/opt/ros/hydro/.catkin ];
 then
   rm %{{?buildroot}}%{{install_dir}}/.catkin \
