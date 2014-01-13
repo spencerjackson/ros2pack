@@ -284,7 +284,7 @@ if __name__ == '__main__':
   if args.packages == None:
     packages = [name for name in os.listdir(srcdir) if os.path.isdir(srcdir + name)]
   else:
-    packages = dict([(k,package_paths[k]) for k in args.packages if k in package_paths])
+    packages = args.packages
 
   print("Listing packages on server ...")
   with subprocess.Popen(
