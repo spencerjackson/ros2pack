@@ -143,11 +143,12 @@ class RPMSpec:
     download_files_srv = """  <service name="download_files"/>"""
     tar_scm_srv = """  <service name="tar_scm">
     <param name="url">{source}</param>
+    <param name="filename">{name}</param>
     <param name="version">{version}</param>
-    <param name="revision">master</param>
+    <param name="revision">release/{distro}/{name}</param>
     <param name="scm">git</param> 
   </service>
-""".format(source = self.source, version = self.version)
+""".format(source = self.source, version = self.version, distro=self.distro, name=self.name)
 
     stream.write("""<services>
 {srv}
@@ -175,7 +176,7 @@ BuildRequires:  python-rosmanifestparser
 
     # correction for tar_scm
     if re.search("(\.git)$", self.source):
-      src = self.name + '-' + self.version
+      src = self.name + '-' + self.version + ".tar"
     else:
       src = self.source
 
