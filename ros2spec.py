@@ -146,14 +146,17 @@ class RPMSpec:
     <param name="filename">{name}</param>
     <param name="version">{version}</param>
     <param name="revision">release/{distro}/{name}</param>
-    <param name="scm">git</param> 
-  </service>
-""".format(source = self.source, version = self.version, distro=self.distro, name=self.name)
+    <param name="scm">git</param>
+  </service>""".format(source = self.source, version = self.version, distro=self.distro, name=self.name)
+    recompress_srv = """  <service name="recompress">
+        <param name="compression">xz</param>
+        <param name="file">_service:tar_scm:{name}-{version}.tar</param>
+  </service>""".format(name=self.name, version=self.version)
 
     stream.write("""<services>
 {srv}
 </services>
-""".format(srv = (download_files_srv if "ros-gbp" in self.source else tar_scm_srv)))
+""".format(srv = (download_files_srv if "ros-gbp" in self.source else tar_scm_srv + recompress_srv)))
 
   def render(self, stream):
     header_template = """%define __pkgconfig_path {{""}}
@@ -176,7 +179,7 @@ BuildRequires:  python-rosmanifestparser
 
     # correction for tar_scm
     if re.search("(\.git)$", self.source):
-      src = self.name + '-' + self.version + ".tar"
+      src = self.name + '-' + self.version + ".tar.xz"
     else:
       src = self.source
 
