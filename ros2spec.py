@@ -54,9 +54,9 @@ binding for {name} for this OS?""".format(name=self._name))
     self._run = {p: self.get_dependency(p) for p in run_depends}
 
   def __str__(self):
-    return "Build: {b}\nRun: {r}".format(b = self._build.__str__(), 
+    return "Build: {b}\nRun: {r}".format(b = self._build.__str__(),
                                          r = self._run.__str__())
-  
+
   def build_packages(self):
     return self._build.values()
 
@@ -224,7 +224,7 @@ rmdir %{{?buildroot}}%{{install_dir}}/lib/pkgconfig
 
     stream.write(body.format(
       pkgconfig = pkg_config_cmds if not self.is_metapackage else '',
-      name = self.name, has_python = self.has_python, 
+      name = self.name, has_python = self.has_python,
       install_space = "/opt/ros/" + self.distro))
 
 # Allows overriding summary and description, and allows ignoring a package
@@ -352,4 +352,3 @@ setBadness('shlib-policy-name-error', 0)""")
     if (args.remote):
       print("Performing check-in...")
       subprocess.check_call(['osc', 'ci', '-m', '"ros2spec automated check-in"'])
-      
