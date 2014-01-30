@@ -73,8 +73,28 @@ def extract_all_text(element):
   return re.sub('\s+', ' ', "".join(mod_lst).strip())
 
 class RPMSpec(object):
-
   def __init__(self, package, wsPath, override, distro):
+    package_path = os.path.dirname(package['filename'])
+
+    #Figure out if the package should be noarch
+    #Parse the CMakeLists for executable targets
+    def has_no_architecture(cmake_text):
+        return re.search("add_library", cmake_text, re.IGNORECASE) == None and re.search("add_executable", cmake_text, re.IGNORECASE) == None and re.search("catkin_add_gtest", cmake_text, re.IGNORECASE) == None
+
+    self.no_arch = package.is_metapackage()
+    cmake_files = {package_path}
+    try:
+      while not self.no_arch and cmake_files:
+        cmake_path = cmake_files.pop()
+        with open(os.path.join(cmake_path, "CMakeLists.txt"), "r") as cmake_file:
+          cmake_text = cmake_file.read()
+          self.no_arch = has_no_architecture(cmake_text)
+          for match in re.finditer("add_subdirectory\((.+)\)", cmake_text, re.IGNORECASE):
+            cmake_files.add(os.path.join(cmake_path, match.group(1)))
+    except IOError:
+      print("Got IOError while parsing a CMakeLists.txt for architecture information...")
+      pass
+
     self.name = package['name']
     self.version = package['version']
     url_objects = package['urls']
@@ -119,8 +139,7 @@ class RPMSpec(object):
                                         convert_to_names(package['build_depends']),
                                         convert_to_names(package['run_depends']))
 
-    self.has_python = os.path.isfile(os.path.join(os.path.dirname(package['filename']),
-                                                                  "setup.py"))
+    self.has_python = os.path.isfile(os.path.join(package_path, "setup.py"))
 
     self.is_metapackage = package.is_metapackage()
 
@@ -159,11 +178,13 @@ Source0:        {source}
 Source1:        {pkg_name}-rpmlintrc
 """
 
+    if self.no_arch:
+      header_template += "BuildArch: noarch\n"
+
     header_template += """BuildRequires:  python-devel
 BuildRequires:  gcc-c++
 BuildRequires:  python-rosmanifestparser
 """
-
     # correction for tar_scm
     if re.search("(\.git)$", self.source):
       src = self.name + '-' + self.version + ".tar.xz"
