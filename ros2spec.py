@@ -10,7 +10,6 @@ import urllib2
 
 from catkin_pkg.packages import find_packages
 
-import pdb
 # Encapsulates a list of dependencies
 class DependencyStore:
 
@@ -314,7 +313,6 @@ if __name__ == '__main__':
   remote_packages = [line.replace('\n', '') for line in osc_list.stdout]
   skip = args.pack_resume != None
 
-  print(args.packages)
   for package_key, package in packages.iteritems():
     if skip and (package != args.pack_resume):
       continue
